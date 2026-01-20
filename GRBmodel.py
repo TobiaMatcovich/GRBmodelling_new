@@ -1,9 +1,8 @@
 
 
-import logging
-import os
-import warnings
-from collections import OrderedDict
+from log_config import setup_logger
+log = setup_logger(__name__)  
+
 from multiprocessing import Pool
 
 import astropy
@@ -24,10 +23,11 @@ from Validator import (
     validate_scalar,
 )
 #from .model_utils import memoize
-from Utils import trapz_loglog
+from Utils import trapz_loglog,trapz_numba,simpson_uniform
 
 import Models
-import Radiative
+import RadiativeCopy as Radiative
+#import Radiative
 
 import matplotlib.pyplot as plt
 
@@ -36,6 +36,11 @@ from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib.colorbar import ColorbarBase
 
 from scipy.integrate import quad
+import time
+from datetime import datetime
+import cProfile, pstats
+import os
+
 
 #-------------------------------------------------- static variables: ---------------------------------------------
 
@@ -372,7 +377,7 @@ class GRBModel1:
         self.eta_b = 0  # Fraction of thermal energy going into magnetic field
         self.naimamodel = 0  # Model used for the fit - initialized in later function
         self.lnprior = 0  # Prior used for the fit - initialized in later function
-        self.load_model_and_prior()  # Loads the model and the relative prior
+        self.load_model_and_prior(pars)  # Loads the model and the relative prior
         self.esycool = 0  # Characteristic synchrotron energy corresponding to the break energy of the electrons
         self.synchedens = 0  # total energy density of synchrotron photons
         self.synch_comp_approx = 0 
@@ -403,7 +408,8 @@ class GRBModel1:
 
         Time is the average between the tstart and tstop.
         The functions takes automatically the initialization parameters
-        """            
+        """           
+        
         if (self.scenario == 'ISM'):
             gamma = (1. / 8.) ** (3. / 8.) * (3.0 * self.Eiso / (4.0 * np.pi * self.density * mpc2_erg * ((c * avtime) ** 3.0))) ** 0.125
             self.gamma=gamma
@@ -413,7 +419,8 @@ class GRBModel1:
         else:
             text = "Chosen scenario: %s\n" \
                    "The scenario indicated not found. Please choose 'ISM' scenario" % self.scenario
-            raise ValueError(text)       
+            raise ValueError(text)   
+            
         
         return gamma,radius   
           
@@ -435,9 +442,9 @@ class GRBModel1:
             Photon density in the considered emission region.
         """
         
-        return Lsy / (4. * np.pi * sizereg ** 2. * c * u.cm / u.s)
+        return Lsy / (2. * np.pi * sizereg ** 2. * c * u.cm / u.s)
       
-    def load_model_and_prior(self):
+    def load_model_and_prior(self,pars):
         """
         Associates the bound methods
         naimamodel and lnprior to the chosen
@@ -446,10 +453,18 @@ class GRBModel1:
         Modify here if you want to change the model
         or the priors
         """
-        print("")
-        print(" ------------------ Starting GRB initialization ------------------")
-        Gamma,raduius=self.gammaval(self.avtime) # call the function to compute the basic GRB initialization parameters
-        print("Gamma",Gamma)
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STARTING GRB INITIALIZATION "))
+        log.info("")
+
+        log.info(f"Average time (s):{self.avtime}")
+        Gamma,radius=self.gammaval(self.avtime) # call the function to compute the basic GRB initialization parameters
+        log.info(f"Gamma:{Gamma}")
+        eta_e = 10. ** pars[0] # parameter 0: fraction of available energy ending in non-thermal electrons
+        self.eta_e = eta_e
+        bfield = 10. ** (pars[4]) * u.G  # parameter 4: Magnetic field (as log10)
+        self.B=bfield
         self.naimamodel = self._SSCmodel_ind1fixed
         #-------------------------- change here for the prior functions -------------------------------------
         # For performance it is better to use if statements here to avoid having them in the prior function
@@ -463,9 +478,10 @@ class GRBModel1:
             else:
                 self.lnprior = self._lnprior_ind2free_wlim
         """
-
-        print(" ------------------ Ending GRB initialization ------------------")
-        print("")
+        log.info("")
+        log.info("#{:^103}#".format(" ENDING GRB INITIALIZATION "))
+        log.info("#" * 105)
+        log.info("")
 
     def _SSCmodel_ind1fixed(self, pars, data):
         """"
@@ -488,22 +504,22 @@ class GRBModel1:
            electron_distribution : tuple
              electron distribution as tuple energy, electron_distribution(energy) in units of erg
         """
-        print("")
-        print("-------------------- Starting GRB computation --------------------")
 
-        eta_e = 10. ** pars[0] # parameter 0: fraction of available energy ending in non-thermal electrons
-        self.eta_e = eta_e
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STARTING GRB COMPUTATION "))
+        log.info("#" * 105)
+        log.info("")
+
+        #print("Data energy.shape:",data['energy'].shape)
+        eta_e=self.eta_e
         ebreak = 10. ** pars[1] * u.TeV  # parameter 1: linked to break energy of the electron distribution (as log10)
         alpha1 = pars[2] - 1.  # fixed to be a cooling break
         alpha2 = pars[2]  # parameter 2: high energy index of the ExponentialCutoffBrokenPowerLaw
         e_cutoff = (10. ** pars[3]) * u.TeV  # parameter 3: High energy cutoff of the electron distribution (as log10)
         
-        bfield = 10. ** (pars[4]) * u.G  # parameter 4: Magnetic field (as log10)
-        self.B=bfield
+        bfield=self.B
         redf = 1. + self.redshift  # redshift factor
-        
-        #doppler = self.gamma  # assumption of doppler boosting ~ Gamma OLD
-        #doppler = self.gamma 
         size_reg = self.sizer * u.cm  # size of the region as astropy quantity
         
         # ------------------- Volume shell where the emission takes place. The factor 9 comes from considering the shock in the ISM ----------------
@@ -511,7 +527,7 @@ class GRBModel1:
         deltaR=self.sizer / (self.depthpar * self.gamma)
         self.shell_dept=deltaR
         
-        solid_angle=4.0*np.pi
+        solid_angle=2.0*np.pi #4 pi for sphere and 2 pi for half sphere?
         vol = solid_angle * self.sizer ** 2. * deltaR
         self.volume=vol
         
@@ -526,8 +542,8 @@ class GRBModel1:
         ECBPL = Models.ExponentialCutoffBrokenPowerLaw(ampl, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
         #---------------------------------------------- E min iterative process ----------------------------------------------------
         Emin_0=1e9*u.eV
-        Emin_0_exp=9
-        energies = np.logspace(Emin_0_exp, np.log10(eemax), 100) * u.eV
+        #Emin_0_exp=9
+        energies = np.logspace(9, np.log10(eemax), 100) * u.eV
         eldis = ECBPL(energies)
         fact1 = eta_e * self.gamma * mpc2
         E_medium = trapz_loglog(energies * eldis, energies) / trapz_loglog(eldis, energies)
@@ -542,7 +558,6 @@ class GRBModel1:
         #----------- (https://www.cv.nrao.edu/~sransom/web/Ch5.html)------------------------
         SYN = Radiative.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
         #----------------------------------------------------------------------------------------------------------------------------
-        
         amplitude = ((eta_e * shock_energy * vol) / SYN.compute_Etot(Eemin=emin, Eemax=eemax * u.eV)) / u.eV
         
         ECBPL = Models.ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
@@ -559,105 +574,132 @@ class GRBModel1:
         
         #---------------------------------------------------------------------------------------------------------------------
         Esy = np.logspace(min_synch_ene, cutoff_charene + 1, bins) * u.eV
+        #print("Esy.shape:",Esy.shape)
         Lsy = SYN.flux(Esy, distance=0 * u.cm)  # number of synchrotron photons per energy per time (units of 1/eV/s)
+        #print("Lsy.shape:",Lsy.shape)
         phn_sy = self.calc_photon_density(Lsy, size_reg)   # number density of synchrotron photons (dn/dE) units of 1/eV/cm3
         #----------------------------------------------------------------------------------------------------------------------
         self.esycool = (synch_charene(bfield, ebreak))
-        self.synchedens = trapz_loglog(Esy * phn_sy, Esy, axis=0).to('erg / cm3')
-        
-        
-        IC = Radiative.InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], 
-                                      Eemin=emin, Eemax=eemax * u.eV, 
-                                      nEed=20)
-        
-        #--------------------------- SYN and IC in detector frame-------------------------------------
-        
-        unit_syn = (u.erg / (u.cm**2 * u.s)) 
-        
-        self.synch_comp_approx = (self.gamma ** 2.) * SYN.sed(data['energy'] / self.gamma * redf, distance=self.Dl)*redf* unit_syn
-        self.ic_comp_approx =    (self.gamma ** 2.) *  IC.sed(data['energy'] / self.gamma * redf, distance=self.Dl)*redf* unit_syn
-        
-        #print("Approx synch comp:", self.synch_comp_approx)
-        #print("Approx IC comp:", self.ic_comp_approx)
 
+    
+        #print("phn_sy.shape",phn_sy.shape)
+        self.synchedens = trapz_loglog(Esy * phn_sy, Esy, axis=-1).to('erg / cm3')
+        
+        
+        IC = Radiative.InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+ 
+        #--------------------------- SYN and IC in detector frame-------------------------------------------------------------------
+        
+        energy_unit = (u.erg / (u.cm**2 * u.s))
+        # ------------ Parametri -------------
+        Gamma=self.gamma
+        Dl = self.Dl  # distanza con unità (es. Mpc)
+        E_obs = data['energy'].quantity
 
-        # --- Doppler factor ---
-        def doppler(gamma, theta_rad):
+        log.info("------------------------------ START: APPROX SPECTRUM --------------------------")
+        log.info(f"Gamma: {Gamma:.2f}" )
+        log.info(f"E_obs.shape {E_obs.shape}")
+          
+        start = time.time()
+        self.synch_comp_approx = (Gamma ** 2.) * SYN.sed(E_obs / Gamma * redf, distance=Dl)*redf* energy_unit
+        log.info("")
+        log.info(f"Tempo impiegato per self.synch_comp_approx : {time.time() - start:.3f} s")
+        #print(f"SYN approx max:{np.max(self.synch_comp_approx)}")
+        log.info("")
+
+        start = time.time()
+        self.ic_comp_approx =    (Gamma ** 2.) *  IC.sed(E_obs/ Gamma * redf, distance=Dl)*redf* energy_unit
+        log.info(f"Tempo impiegato per self.ic_comp_approx : {time.time() - start:.3f} s")
+        log.info(f"IC approx max:{np.max(self.ic_comp_approx)}")
+        log.info("")
+        log.info("------------------------------ END: APPROX SPECTRUM -----------------------------")
+        log.info("")
+        log.info("############################## START: TRUE SPECTRUM #############################")
+
+        # ---------------------------------- Doppler factor -----------------------------------------------------------------------------
+        def doppler_onaxis(gamma, theta_rad):
             beta = np.sqrt(1 - 1 / gamma**2)
             return 1 / (gamma * (1 - beta * np.cos(theta_rad)))
 
-        # --- Parametri ---
-        Gamma = self.gamma
-        Dl = self.Dl  # distanza con unità (es. Mpc)
-        E_obs = data['energy'].quantity  # array di energie con unità (es. eV)
-
-    
-
-        # --- Griglia angolare per l'integrazione ---
-        #theta_max = np.pi/2   # oppure il tuo angolo di jet (es. theta_j)
-        
         theta_max = 4/Gamma   # oppure il tuo angolo di jet (es. theta_j)
-        print("Theta max (deg):", theta_max*180/np.pi," = 4\Gamma")
+        log.info(f"Theta max (deg): {np.round(np.rad2deg(theta_max),2)} = 4Γ")
+        
+        n_theta=30
+        theta_vals=np.linspace(0.0,theta_max,n_theta)
 
-        n_theta = 10         # risoluzione angolare, aumenta se serve
-        thetas = np.linspace(0, theta_max, n_theta)
-        weights = np.sin(thetas) * 2*np.pi
-        deltas = doppler(Gamma, thetas)  # shape (n_theta,)
+        deltas = doppler_onaxis(Gamma, theta_vals)  # shape (n_theta,)
+        log.info(f"Doppler factor: {[f'{x:.2f}' for x in deltas]}")
         self.doppler=deltas  # Doppler factor at theta=0
 
-        #print("Doppler factor:", self.doppler)
-        print("Gamma factor ISO :", self.gamma) 
-        print(" Doppler factor(theta)",self.doppler) 
+        print("")
+        log.info("---------------------------- Integration START ------------------------")
+        # Energies comoving per tutta la shell (broadcasting su phi)
+        E_com = (E_obs[:, None] * redf / deltas[None, :]) # shape (n_E, n_phi)
+        log.info(f"E_com.shape:{E_com.shape}")
 
-        # --- Loop sulle energie, vettoriale sugli angoli ---
-        synch_flux = []
-        ic_flux = []
+        # sed su array 2D (E x phi)
+        start = time.time()
+        sed_syn_shell = SYN.sed(E_com, distance=Dl)
+        log.info(f"Tempo impiegato per self.synch_comp : {time.time() - start:.3f} s")
+        log.info(f"sed_syn_shell:{sed_syn_shell.shape}")
+        
+        start = time.time()
+        sed_ic_shell  = IC.sed(E_com, distance=Dl)
+        log.info(f"Tempo impiegato per self.ic_comp : {time.time() - start:.3f} s")
+        log.info(f"sed_ic_shell:{sed_ic_shell.shape}")
+        log.info("")
 
-        for E in E_obs:
-            # energia comovente per ogni angolo
-            E_com = (E * redf / deltas).to(u.eV)
+        # Integrale su Theta
+        weights = np.sin(theta_vals)
+        integrand_syn = sed_syn_shell * ((deltas[None, :])**2) *weights
+        integrand_ic  = sed_ic_shell  * ((deltas[None, :])**2) *weights
+        
+        '''print("")
+        start = time.time()
+        flux_syn_total = np.trapz(integrand_syn, theta_vals, axis=-1)  # shape (n_E,)
+        print(f"Tempo impiegato per integrare syn : {time.time() - start:.9f} s")
 
-            # calcolo delle SED (array 1D)
-            sed_syn = SYN.sed(E_com, distance=Dl).to(unit_syn).value  # shape (n_theta,)
-            sed_ic  = IC.sed(E_com,  distance=Dl).to(unit_syn).value
+        start = time.time()
+        flux_syn_total = trapz_numba(integrand_syn, theta_vals)  # shape (n_E,)
+        print(f"Tempo impiegato per integrare syn con numba : {time.time() - start:.9f} s")'''
 
-            # integrandi
-            integrand_syn = (deltas**2) * sed_syn * weights
-            integrand_ic  = (deltas**2) * sed_ic  * weights
+        start = time.time()
+        flux_syn_total = simpson_uniform(integrand_syn, theta_vals)  # shape (n_E,)
+        log.info(f"Tempo impiegato per integrare syn con simspn numba : {time.time() - start:.9f} s")
 
-            # integrazione su theta (trapz veloce)
-            flux_syn = np.trapz(integrand_syn, thetas)
-            flux_ic  = np.trapz(integrand_ic,  thetas)
+        '''print("")
+        start = time.time()
+        flux_ic_total  = np.trapz(integrand_ic, theta_vals, axis=-1)
+        print(f"Tempo impiegato per integrare ic : {time.time() - start:.9f} s")
+        
+        start = time.time()
+        flux_ic_total  = trapz_numba(integrand_ic, theta_vals)
+        print(f"Tempo impiegato per integrare ic con numba : {time.time() - start:.9f} s")'''
+        
+        start = time.time()
+        flux_ic_total  = simpson_uniform(integrand_ic, theta_vals)
+        log.info(f"Tempo impiegato per integrare ic con simps numba: {time.time() - start:.9f} s")
 
-            synch_flux.append(flux_syn)
-            ic_flux.append(flux_ic)
+        #print("flux_syn_total.shape:",flux_syn_total.shape)
+        #print("flux_ic_total.shape:",flux_ic_total.shape)
 
+        log.info("----------------------------------- Integration END ------------------------------------")
+        log.info("")
+    
+        
+        #print(" syn max flux:", np.max(flux_syn_total))
+        #print(" ic max flux:", np.max(flux_ic_total)) 
 
-        self.synch_comp = synch_flux* unit_syn
-        self.ic_comp    = ic_flux  * unit_syn
-
-        #print("self.synch_comp:", self.synch_comp)
-        #print("self.ic_comp:", self.ic_comp)
+        self.synch_comp = flux_syn_total* energy_unit
+        self.ic_comp    = flux_ic_total  * energy_unit
 
         model_wo_abs = self.synch_comp + self.ic_comp
 
         #-------------------------- Gamma Gamma Absorption ----------------------------------------------------------------------
         # Optical depth in a shell of width R/(9*Gamma) after transformation of the gamma ray energy of the data in the grb frame
         
-        tauval = tau_val(data['energy'] / self.doppler[0] * redf, Esy, phn_sy, self.sizer / (9 * self.gamma) * u.cm)
-        #tauval = tau_val(data['energy'] / Gamma* redf, Esy, phn_sy, self.sizer / (9 * self.gamma) * u.cm)
-
         R_eff = (self.sizer / (9 * self.gamma)) * u.cm
         tauval = tau_val(data['energy'] / self.gamma * redf, Esy, phn_sy, R_eff)
-        
-        """print("type(synch_comp):", type(self.synch_comp))
-        print("synch_comp.shape:", getattr(self.synch_comp, 'shape', None))
-        print("type(ic_comp):", type(self.ic_comp))
-        print("ic_comp.shape:", getattr(self.ic_comp, 'shape', None))
-        print("type(tauval):", type(tauval))
-        print("tauval.shape:", getattr(tauval, 'shape', None))"""
-
-
         
         #--------------------------------METHOD 1 ---------------------------------------------------------------------
         #self.synch_compGG = self.synch_comp * np.exp(-tauval)
@@ -668,17 +710,22 @@ class GRBModel1:
         mask = tauval > 1.0e-4  # fixed level, you can choose another one
         self.synch_compGG2 = self.synch_comp.copy()
         self.ic_compGG2 = self.ic_comp.copy()
+        
         self.synch_compGG2[mask] = self.synch_comp[mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
         self.ic_compGG2[mask] = self.ic_comp[mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
         model = (self.synch_compGG2 + self.ic_compGG2)
         
+        log.info("################################ END: TRUE SPECTRUM #############################")
         #-------------------- save the electron distrivution ---------------------------
         ener = np.logspace(np.log10(emin.to('GeV').value), 8,500) * u.GeV  # Energy range to save the electron distribution from emin to 10^8 GeV
         eldis = ECBPL(ener)  # Compute the electron distribution
         electron_distribution = (ener, eldis)
 
-        print("-------------------- ending GRB computation --------------------")
-        print("")
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format("ENDING GRB COMPUTATION "))
+        log.info("#" * 105)
+        log.info("")
 
         return model,model_wo_abs, electron_distribution  # returns model and electron distribution
 
@@ -754,7 +801,7 @@ class GRBModel1:
         plt.show
         #---------------------------------------------------------------------------------------------------- 
         
-    def plot_sed(self, emin, emax,order_bottom,Save=False,Path='',Name=''):
+    def plot_sed(self, emin, emax,order_bottom,plot_true=False,plot_gg_abs=False,Save=False,Path=None,Name=None):
         
         """ Parameters
           emin : float
@@ -781,11 +828,11 @@ class GRBModel1:
         mask = (energy >= emin) & (energy <= emax)
         energy_plot = energy[mask]
  
-
         SSC= self.synch_comp + self.ic_comp
         SSC_approx= self.synch_comp_approx + self.ic_comp_approx 
     
-        SSC_val = np.clip(SSC_approx.value, 1e-30, 1e50)  # limiti ragionevoli
+        #SSC_val = np.clip(SSC_approx.value, 1e-30, 1e50)  # limiti ragionevoli
+        SSC_val =np.maximum(SSC_approx.value, 1e-30)
         ymax = np.max(SSC_val)
         ymin = np.min(SSC_val)
 
@@ -809,81 +856,112 @@ class GRBModel1:
         #cmap2 = truncate_colormap(plt.cm.viridis, 0.1, 0.9)
         
         #----------------------------------------------- Report --------------------------------------------
-        print("---------------------------------------------------------------------------------------------------")
-        Gamma = '\u0393'
-        eta = '\u03B7'
-        print(f"{Gamma} factor = {self.gamma}")
-        print(f"{eta}_B = {self.eta_b}")
-        print(f"{eta}_e = {self.eta_e}")
-        print(f"Shell Radius",self.sizer*u.cm)
+        log.info("--------------------------------PLOT SED -------------------------------------------------")
+        #Gamma = '\u0393'
+        #eta = '\u03B7'
+        #print(f"{Gamma} factor = {self.gamma}")
+        #print(f"{eta}_B = {self.eta_b}")
+        #print(f"{eta}_e = {self.eta_e}")
+        #print(f"Shell Radius",self.sizer*u.cm)
 
 
-        print("---------------------------------------------------------------------------------------------------")
+       
 
         #----------------------------------------------- Plot ----------------------------------------------
         plt.figure(figsize=(12,8))
-        plt.rc('font', family='sans')
+        plt.tick_params(axis='both', which='major', labelsize=15)
+        plt.tick_params(axis='both', which='minor', labelsize=12)     
+        plt.rc('font', family='DejaVu Sans')
         plt.rc('mathtext', fontset='custom')
 
-        plt.loglog(energy_plot,self.synch_comp[mask],lw=2,label='SYN',c=cmap1(0.4))
-        plt.loglog(energy_plot,self.ic_comp[mask],lw=2,label='IC',c=cmap1(0.7))
-        plt.loglog(energy_plot,SSC[mask],lw=2,label='SSC',c=cmap1(0.2))
-        plt.loglog(energy_plot,SSC_approx[mask],lw=2,label='SSC_approx',c=cmap1(0.9))
-        #plt.loglog(newene,SSC_no_abs,lw=2,label='SSC no abs',c=cmap1(0.1))
-        
-        #plt.loglog(newene,self.synch_comp,lw=2,label='SYN-no absorbtion',c=cmap2(0.4))
-        #plt.loglog(newene,self.ic_comp,lw=2,label='IC-no absorbtion',c=cmap2(0.7))
-        #plt.loglog(newene,SSC_no_abs,lw=2,label='SSC-no absorbtion',c=cmap2(0.2))
-        
+        plt.loglog(energy_plot,self.ic_comp_approx.squeeze()[mask],lw=1.5,ls='--',c="black")
+        plt.loglog(energy_plot,self.synch_comp_approx.squeeze()[mask],lw=1.5,ls=':',c="gray")
+        SSC_approx= self.synch_comp_approx+ self.ic_comp_approx
+        plt.loglog(energy_plot,SSC_approx.squeeze()[mask],lw=2,label=f'SSC isotropic-approx',c=cmap1(0.1))
 
-        #plt.xlabel('Photon energy [{0}]'.format(energy_plot['energy'].unit.to_string('latex_inline')),fontsize=15)
+        if plot_true:
+          plt.loglog(energy_plot,self.ic_comp[mask],lw=1.5,ls='--',c="black")
+          plt.loglog(energy_plot,self.synch_comp[mask],lw=1.5,ls=':',c="gray")
+          SSC= self.synch_comp[mask] + self.ic_comp[mask]
+          plt.loglog(energy_plot,SSC,lw=2,label=f'SSC isotropic-true',c=cmap1(0.3))  
+
+        if plot_gg_abs:
+          plt.loglog(energy_plot,self.ic_compGG2[mask],lw=1.5,ls='--',c="black")
+          plt.loglog(energy_plot,self.synch_compGG2[mask],lw=1.5,ls=':',c="gray")
+          SSC_GG= self.synch_compGG2[mask] + self.ic_compGG2[mask]
+          plt.loglog(energy_plot,SSC_GG,lw=2,label=f'SSC isotropic-true,GG',c=cmap1(0.5))  
+
         plt.xlabel("Photon energy [eV]", fontsize=15)
         plt.ylabel('$E^2 dN/dE$ [{0}]'.format(SSC_approx.unit.to_string('latex_inline')),fontsize=15)
-
+  
         #plt.xlim(emin, emax)
         plt.ylim(ymin, ymax)
         plt.tight_layout()
-        plt.legend(loc='lower left')
-
+        plt.legend(loc='upper right',fontsize=15)
+        plt.title(f"{Name}",fontsize=15)
         plt.grid(True, which="both", linestyle="--", alpha=0.6)
       
-        if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{Path}SED_{Name}.jpg", format="jpg", dpi=300)
+        if Save and Path is not None:
+            filename=Name+".jpg"
+            file_path = os.path.join(Path, filename)
+            plt.savefig(file_path, format="jpg", dpi=300)
         
-            print(f"Plot saved as: {Path}SED_{Name}.png/pdf")
-        plt.show
-        #---------------------------------------------------------------------------------------------------- 
-      
+            log.info(f"Plot saved as: {Path}SED_{Name}.jpg")
+
+        log.info("--------------------------------PLOT SED END -------------------------------------------------")
+        plt.show()
+    
+    #==================================================================================================================================
+
     def print_GRB_status(self):
-        print("")
-        print("###############################   GRB status - START   #########################################")
-        print("")
-        print(f"Isotropic Energy: {self.Eiso} erg")
-        print(f"Ambient density around the burst units of cm-3: {self.density}")
-        print(f"Average evaluation time: {self.avtime} s")
-        print(f"Redshift: {self.redshift}")
-        print(f"Luminosity Distance: {self.Dl}")
-        print(f"Scenario: {self.scenario}")
-        print(f"Magnetic field B: {self.B}")
-        print(f"eta e: {self.eta_e}")
-        print(f"eta B: {self.eta_b}")
-        print("---------------------------------------------------------------------------------------")
-        print(f"Gamma factor (Boosting): {self.gamma}")
-        radius=self.sizer*u.cm
-        deltaR=self.shell_dept*u.cm
-        volume=self.volume*(u.cm)**3
-        print(f"Radius of the shell: {radius.to(u.pc):.3e} or {radius.to(u.km):.3e}")
-        print(f"Dept of the shell: {deltaR.to(u.pc):.3e} or {deltaR.to(u.km):.3e}")
-        print(f"Volume of the shell: {volume.to(u.pc**3):.3e} or {volume.to(u.km**3):.3e}")
-        print(f"Shock energy density (omega): {self.shock_energy}")
-        print(f"Minimum injection energy for the particle distribution: {self.Emin}")
-        print(f"Total energy in the electrons: {self.Wesyn}")
-        print("")
-        print("###############################   GRB status - END   #########################################")
-        print("")
- 
-    def plot_gamma_radius_vs_time(self, tmin=1, tmax=1e7, num=200,Save=False,path='',Name=''):
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" GRB STATUS "))
+        log.info("#" * 105)
+        log.info("")
+
+        # Definisci una larghezza uniforme per le colonne
+        label_width = 55
+        val_width = 20
+
+        def line(label, value, fmt="g", unit=""):
+            log.info(f"{label:<{label_width}} {value:{val_width}.{3}{fmt}} {unit}")
+
+        line("Isotropic Energy [erg]:", self.Eiso )
+        line("Ambient density [cm⁻³]:", self.density)
+        line("Average evaluation time [s]:",self.avtime)
+        line("Redshift:",self.redshift)
+        line("Luminosity Distance [cm]",self.Dl)
+        log.info(f"Scenario:{self.scenario}")
+        line("Magnetic field B:", self.B)
+        line("ηₑ:",self.eta_e)
+        line("η_B:",self.eta_b)
+
+        log.info("-" * 105)
+        line("Gamma factor (Boosting):",self.gamma)
+
+        radius = self.sizer * u.cm
+        deltaR = self.shell_dept * u.cm
+        volume = self.volume * (u.cm)**3
+
+        # Stampa con due unità alternative
+        log.info(f"{'Radius of the shell:':<{label_width}} {radius.to(u.pc).value:{val_width}.3e} pc  ({radius.to(u.km).value:.3e} km)")
+        log.info(f"{'Depth of the shell:':<{label_width}} {deltaR.to(u.pc).value:{val_width}.3e} pc  ({deltaR.to(u.km).value:.3e} km)")
+        log.info(f"{'Volume of the shell:':<{label_width}} {volume.to(u.pc**3).value:{val_width}.3e} pc³ ({volume.to(u.km**3).value:.3e} km³)")
+
+        log.info(f"Shock energy density (ω): {self.shock_energy}")
+        log.info(f"Minimum injection energy [erg]: {self.Emin}")
+        log.info(f"Total energy in electrons [erg]: {self.Wesyn}")
+
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" END STATUS "))
+        log.info("#" * 105)
+        log.info("")
+
+  #==================================================================================================================================
+
+    def plot_gamma_radius_vs_time(self, tmin=1, tmax=1e7, num=200,Save=False,Path=None,Name=None):
       """
       Plotta Gamma(t) e R(t) usando la funzione self.gammaval()
       
@@ -923,11 +1001,17 @@ class GRBModel1:
       ax2.set_title("Radius evolution")
 
       plt.tight_layout(rect=[0, 0, 1, 0.95])  # spazio per il titolo globale
-
-      if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{path}SED_{Name}.jpg", format="jpg", dpi=300)
-        
-            print(f"Plot saved as: {path}SED_{Name}.png/pdf")
       
+      if Name:
+        plt.title(f"{Name}",fontsize=15)
+
+      if Save and Path is not None:
+        filename=Name+".jpg"
+        file_path = os.path.join(Path, filename)
+        plt.savefig(file_path, format="jpg", dpi=300)
+        log.info(f"Plot saved as: {Path}SED_{Name}.jpg")
+
+
+        
+            
       plt.show()

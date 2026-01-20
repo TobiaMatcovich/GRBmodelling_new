@@ -1,0 +1,5 @@
+2026-01-08 16:09:09 | INFO | __main__ | Logger inizializzato. File: logs/__main__.log
+2026-01-08 16:09:10 | INFO | __main__ | E_iso_gauss(0) = 2.231e+54 erg
+2026-01-08 16:09:10 | INFO | __main__ | E_iso_pl(0) = 2.204e+54 erg
+2026-01-08 16:09:53 | INFO | __main__ | Computation time for structured model: 43.090 s
+2026-01-08 16:11:44 | INFO | __main__ | Execution time for TEST_struc_model.py: 153.499 s

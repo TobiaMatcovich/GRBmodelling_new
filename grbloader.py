@@ -26,7 +26,10 @@ import astropy.constants as con
 from astropy.cosmology import WMAP9 as cosmo
 
 import naima
-from naima.models import Synchrotron, InverseCompton, ExponentialCutoffBrokenPowerLaw
+#from naima.models import Synchrotron, InverseCompton, ExponentialCutoffBrokenPowerLaw
+import Models
+import RadiativeCopy
+
 from naima import uniform_prior, normal_prior
 
 import matplotlib.pyplot as plt
@@ -540,7 +543,7 @@ class GRBModelling:
         self.eta_b = (bfield.value ** 2 / (np.pi * 8.)) / shock_energy.value
         
         ampl = 1. / u.eV  # temporary amplitude
-        ECBPL = ExponentialCutoffBrokenPowerLaw(ampl, 1. * u.TeV, ebreak, alpha1, alpha2,
+        ECBPL = Models.ExponentialCutoffBrokenPowerLaw(ampl, 1. * u.TeV, ebreak, alpha1, alpha2,
                                                 e_cutoff)  # initialization of the electron distribution
         rat = eta_e * self.gamma * mpc2
         ener = np.logspace(9, np.log10(eemax), 100) * u.eV
@@ -549,13 +552,13 @@ class GRBModelling:
         emin = rat / ra * 1e9 * u.eV  # calculation of the minimum injection energy. See detailed model explanation
         self.Emin = emin
         
-        SYN = Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+        SYN = RadiativeCopy.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
         # TODO: it might need an exception handling in the following line
         amplitude = ((eta_e * shock_energy * vol) / SYN.compute_Etot(Eemin=emin, Eemax=eemax * u.eV)) / u.eV
         
-        ECBPL = ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
-        SYN = Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
-        self.Wesyn = SYN.compute_We(Eemin=emin, Eemax=eemax * u.eV)  # Computation of the total energy in the electron distribution
+        ECBPL = Models.ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
+        SYN = RadiativeCopy.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+        self.Wesyn = SYN.compute_Etot(Eemin=emin, Eemax=eemax * u.eV)  # Computation of the total energy in the electron distribution
         # energy array to compute the target photon number density to compute IC radiation and gamma-gamma absorption
         
         # characteristic energy at the electron cutoff
@@ -572,12 +575,12 @@ class GRBModelling:
         self.synchedens = naima.utils.trapz_loglog(Esy * phn_sy, Esy, axis=0).to('erg / cm3')
         
         # initialization of the IC component
-        IC = InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+        IC = RadiativeCopy.InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], Eemin=emin, Eemax=eemax * u.eV, nEed=20)
         
         #--------------------------- SYn and IC in detector frame-----------------------------------
         self.synch_comp = (doppler ** 2.) * SYN.sed(data['energy'] / doppler * redf, distance=self.Dl)
-        self.ic_comp = (doppler ** 2.) * IC.sed(data['energy'] / doppler * redf, distance=self.Dl)
-        model_wo_abs = (self.synch_comp+self.ic_comp) # Total model without absorption
+        self.ic_comp =    (doppler ** 2.) * IC.sed(data['energy'] / doppler * redf, distance=self.Dl)
+        model_wo_abs =    (self.synch_comp+self.ic_comp) # Total model without absorption
 
         #-------------------------- Gamma Gamma Absorption ----------------------------------------------------------------------
         # Optical depth in a shell of width R/(9*Gamma) after transformation of the gamma ray energy of the data in the grb frame
@@ -641,7 +644,7 @@ class GRBModelling:
         self.eta_e = eta_e
         self.eta_b = (bfield.value ** 2 / (np.pi * 8.)) / shock_energy.value
         ampl = 1. / u.eV  # temporary amplitude
-        ECBPL = ExponentialCutoffBrokenPowerLaw(ampl, 1. * u.TeV, ebreak, alpha1, alpha2,
+        ECBPL = Models.ExponentialCutoffBrokenPowerLaw(ampl, 1. * u.TeV, ebreak, alpha1, alpha2,
                                                 e_cutoff)  # initialization of the electron distribution
         rat = eta_e * self.gamma * mpc2
         ener = np.logspace(9, np.log10(eemax), 100) * u.eV
@@ -651,10 +654,10 @@ class GRBModelling:
         emin = rat / ra * 1e9 * u.eV  # calculation of the minimum injection energy. See detailed model explanation
         self.Emin = emin
         
-        SYN = Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+        SYN = RadiativeCopy.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
         amplitude = ((eta_e * shock_energy * vol) / SYN.compute_We(Eemin=emin, Eemax=eemax * u.eV)) / u.eV
-        ECBPL = ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
-        SYN = Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+        ECBPL = Models.ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
+        SYN = RadiativeCopy.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
         
         ener = np.linspace(-6, 2, intervals)
         Esyl = []
@@ -673,7 +676,7 @@ class GRBModelling:
             phn_sylc = self.calc_photon_density(Lsylc, size_reg)
             phn_syl.append(phn_sylc)
             name = "SSC%i" % i
-            IClc = InverseCompton(ECBPL, seed_photon_fields=[[name, Esylc, phn_sylc]], Eemin=emin, Eemax=eemax * u.eV,
+            IClc = RadiativeCopy.InverseCompton(ECBPL, seed_photon_fields=[[name, Esylc, phn_sylc]], Eemin=emin, Eemax=eemax * u.eV,
                                   nEed=80)
             ICl.append(IClc)
             icsedlc = doppler ** 2 * IClc.sed(data['energy'] / doppler * redf, distance=self.Dl)

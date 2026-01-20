@@ -10,6 +10,7 @@ import numpy as np
 from astropy import units as u
 from astropy.constants import alpha, c, e, hbar, m_e, m_p, sigma_sb
 from astropy.utils.data import get_pkg_data_filename
+from astropy.table import Table
 
 from Validator import (
     validate_array,
@@ -17,8 +18,14 @@ from Validator import (
     validate_scalar,
 )
 #from .model_utils import memoize
-from Utils import trapz_loglog
+from Utils import trapz_loglog,trapz_loglog_nd
 
+from scipy.special import cbrt
+
+import time
+from numba import njit,prange
+
+#######################################################################################################
 __all__ = [
     "Synchrotron",
     "InverseCompton"
@@ -35,8 +42,9 @@ mec2_unit = u.Unit(mec2)
 ar = (4 * sigma_sb / c).to("erg/(cm3 K4)")  # costante di radiazione
 r0 = (e**2 / mec2).to("cm")  #raggio classico dell'elettrone 
 
+######################################################################################################
 def _validate_ene(ene):
-    from astropy.table import Table
+    
 
     if isinstance(ene, dict) or isinstance(ene, Table):
         try:
@@ -57,6 +65,7 @@ def _validate_ene(ene):
 def heaviside(x):
     return (np.sign(x) + 1) / 2.0
 
+####################################################################################################
 
 class BaseRadiative:
     """Base class for radiative models
@@ -98,8 +107,10 @@ class BaseRadiative:
             Distance to the source. If set to 0, the intrinsic differential
             luminosity will be returned. Default is 1 kpc.
         """
-
+        #print("Flux start")
+        #print("Photon energy.shape",photon_energy.shape)
         flux = self._spectrum(photon_energy)
+        #print("flux.shape",flux.shape)
 
         if distance != 0:
             distance = validate_scalar("distance", distance, physical_type="length")
@@ -113,7 +124,7 @@ class BaseRadiative:
             #print("flux unit:", flux.unit)
             #print("expected unit:", out_unit)
 
-
+        #print("Flux end")
         return flux.to(out_unit)
 
     def sed(self, photon_energy, distance=1 * u.kpc):
@@ -128,6 +139,7 @@ class BaseRadiative:
             Distance to the source. If set to 0, the intrinsic luminosity will
             be returned. Default is 1 kpc.
         """
+        #print("Sed start")
         if distance != 0:
             out_unit = "erg/(cm2 s)"
         else:
@@ -136,7 +148,8 @@ class BaseRadiative:
         photon_energy = _validate_ene(photon_energy)
 
         sed = (self.flux(photon_energy, distance) * photon_energy**2.0).to(out_unit)
-
+        #print("Sed.shape",sed.shape)
+        #print("Sed end")
         return sed
     
     
@@ -153,14 +166,16 @@ class BaseElectron(BaseRadiative):
         """Lorentz factor array"""
         log10gmin = np.log10(self.Eemin / mec2).value
         log10gmax = np.log10(self.Eemax / mec2).value
-        return np.logspace(
-            log10gmin, log10gmax, max(10, int(self.nEed * (log10gmax - log10gmin)))
-        )
+        
+        N=max(10, int(self.nEed * (log10gmax - log10gmin)))
+        #print(f"N:{N}")
+        return np.logspace(log10gmin, log10gmax,N)
 
     @property
     def _nelec(self):
         """Particles per unit lorentz factor"""
         pd = self.particle_distribution(self._gamma* mec2)
+        print(f"Particle distribution shape: {pd.shape}")
         return pd.to(1 / mec2_unit).value
     
     @property
@@ -240,8 +255,21 @@ class BaseElectron(BaseRadiative):
                 amplitude_name,
                 oldampl * (Etot / oldEtot).decompose(),  # decompose in fondamental units
             )
-    
-    
+@njit    
+def Gtilde(x):
+    """
+    AKP10 Eq. D7
+
+    Factor ~2 performance gain in using cbrt(x)**n vs x**(n/3.)
+    Invoking crbt only once reduced time by ~40%
+    """
+    #cb = np.cbrt(x)
+    cb= np.sign(x) * np.abs(x) ** (1.0 / 3.0)
+    gt1 = 1.808 * cb / np.sqrt(1 + 3.4 * cb**2.0)
+    gt2 = 1 + 2.210 * cb**2.0 + 0.347 * cb**4.0
+    gt3 = 1 + 1.353 * cb**2.0 + 0.217 * cb**4.0
+    return gt1 * (gt2 / gt3) * np.exp(-x)
+
 class Synchrotron(BaseElectron):
     """Synchrotron emission from an electron population.
 
@@ -284,6 +312,8 @@ class Synchrotron(BaseElectron):
         self.nEed = 100
         self.param_names += ["B"]
         self.__dict__.update(**kwargs)
+    
+
         
     def _spectrum(self, photon_energy):
         """Compute intrinsic synchrotron differential spectrum for energies in
@@ -293,36 +323,34 @@ class Synchrotron(BaseElectron):
         approximation of Aharonian, Kelner, and Prosekin 2010, PhysRev D 82,
         3002 (`arXiv:1006.1045 <http://arxiv.org/abs/1006.1045>`_)."""
         
+        #print("Spectrum start")
         validated_energy = _validate_ene(photon_energy)
-        from scipy.special import cbrt
-        
-        def Gtilde(x):
-            """
-            AKP10 Eq. D7
+        energies = validated_energy.to("erg").value
 
-            Factor ~2 performance gain in using cbrt(x)**n vs x**(n/3.)
-            Invoking crbt only once reduced time by ~40%
-            """
-            cb = cbrt(x)
-            gt1 = 1.808 * cb / np.sqrt(1 + 3.4 * cb**2.0)
-            gt2 = 1 + 2.210 * cb**2.0 + 0.347 * cb**4.0
-            gt3 = 1 + 1.353 * cb**2.0 + 0.217 * cb**4.0
-            return gt1 * (gt2 / gt3) * np.exp(-x)
-        
         Num= np.sqrt(3) * e.value**3 * self.B.to("G").value
-        Den = (2 * np.pi * m_e.cgs.value* c.cgs.value**2* hbar.cgs.value* validated_energy.to("erg").value)
+        Den = 2 * np.pi * m_e.cgs.value* c.cgs.value**2* hbar.cgs.value* energies
         factor=Num/Den
         
         # Critical energy in erg 
-        Ec = (3 * e.value * hbar.cgs.value * self.B.to("G").value * self._gamma**2)/ (2 * (m_e * c).cgs.value)
+        Ec = (3 * e.value * hbar.cgs.value * self.B.to("G").value * self._gamma**2)/ (2 * (m_e * c).cgs.value)    # Broadcast: photon_energy 2D / Ec 1D
         
-        EgEc=validated_energy.to("erg").value/np.vstack(Ec)        
-        dNdEdt = factor * Gtilde(EgEc)
-        spectrum = (trapz_loglog(np.vstack(self._nelec) * dNdEdt, self._gamma, axis=0) / u.s / u.erg )
+        EgEc = energies[..., np.newaxis] / Ec[np.newaxis, np.newaxis, :]  # shape: (theta, phi, gamma)
+                             # 1D version
+        dNdEdt = factor[..., np.newaxis] * Gtilde(EgEc)  # shape (theta, phi, gamma)
+        
+        nelec = np.array(self._nelec)  # shape (gamma,)
+        
+        print("spectrum")
+        print("nelec.shape:",nelec.shape)
+        print("NdEdt.shape:",dNdEdt.shape)
+        print("gamma.shape:",self._gamma.shape)
+        spectrum = trapz_loglog(nelec * dNdEdt, self._gamma, axis=-1) / u.s / u.erg
+        print("spectrum.shape:",spectrum.shape)
+
         spectrum = spectrum.to("1/(s eV)")
         
         return spectrum
-
+@njit
 def G12(x, param):
     """
     Eqs 18,19,20 of Khangulyan et al (2014)
@@ -333,7 +361,7 @@ def G12(x, param):
     g = 1.0 / (a * x**alpha / tmp + 1.0)
     return G0 * g
 
-
+@njit
 def G34(x, param):
     """
     Eqs 20, 24, 25 of Khangulyan et al (2014)
@@ -344,8 +372,40 @@ def G34(x, param):
     G0 = pi26 * tmp * np.exp(-x)
     tmp = 1 + b * x**beta
     g = 1.0 / (a * x**alpha / tmp + 1.0)
-    return G0 * g    
+    return G0 * g   
+ 
+@njit
+def fic_element(g, e, p):
+        eps=1e-30   
+        b = 4 * p * e
+        w = g / e
+        q = w / ((b * (1 - w))+ eps)
+        
+        if 1.0/(4*e**2) < q < 1.0:
+            return 2*q*np.log(q) + (1 + 2*q)*(1 - q) + 0.5*(b*q)**2*(1 - q)/(1 + b*q)
+        else:
+            return 0.0
+
+@njit
+def compute_fic_numba(gamma, electron, phot):
     
+    
+    Ng_shape = gamma.shape
+    Ne = electron.shape[0]
+    Np = phot.shape[0]
+
+    # Array di output: gamma_dim..., Ne, Np
+    fic = np.zeros(Ng_shape + (Ne, Np))
+
+    for idx in np.ndindex(Ng_shape):
+        for k in range(Ne):
+            for l in range(Np):
+                fic[idx + (k,l)] = fic_element(gamma[idx], electron[k], phot[l])
+                
+
+    return fic
+
+
 class InverseCompton(BaseElectron):
     """Inverse Compton emission from an electron population.
 
@@ -396,7 +456,7 @@ class InverseCompton(BaseElectron):
 
     nEed : scalar
         Number of points per decade in energy for the electron energy and
-        distribution arrays. Default is 300.
+        distribution arrays. Default is 100.
     """
 
     def __init__(self, particle_distribution, seed_photon_fields=["CMB"], **kwargs):
@@ -552,53 +612,71 @@ class InverseCompton(BaseElectron):
         validity_conditon = (gamma_energy < electron_energy) * (electron_energy > 1)
         return np.where(validity_conditon, cross_section, np.zeros_like(cross_section))
     
+    
+
+    # Funzione principale
     @staticmethod
     def _iso_ic_on_monochromatic(electron_energy, seed_energy, seed_edensity, gamma_energy):
-        """
-        IC cross-section for an isotropic interaction with a monochromatic
-        photon spectrum following Eq. 22 of Aharonian & Atoyan 1981, Ap&SS 79,
-        321 (`http://adsabs.harvard.edu/abs/1981Ap%26SS..79..321A`_)
-        """
+        start = time.time()
+
+        # Assicura array 1D
+        electron_energy = np.atleast_1d(electron_energy)
+        seed_energy     = np.atleast_1d(seed_energy)
+        seed_edensity   = np.atleast_1d(seed_edensity)
+
+        #photE0 = seed_energy / mec2.value
         photE0 = (seed_energy / mec2).decompose().value
         phn = seed_edensity
+        gamma_energy = np.asarray(gamma_energy)  # shape (..., Ng)
+        
+        #print("gamma_energy.shape:",gamma_energy.shape)
+        #print("electron_.shape:",electron_energy.shape)
+        #print("photE0.shape:",photE0.shape)
 
-        # electron_energy = electron_energy[:, None]
-        gamma_energy = gamma_energy[:, None]
-        photE0 = photE0[:, None, None]
-        phn = phn[:, None, None]
+        # ---- Costruzione array fic con Numba ----
+        start2 = time.time()
+        kernel= compute_fic_numba(gamma_energy, electron_energy, photE0)
+    
+        #print(f"Tempo impiegato con Numba compiler : {time.time() - start2:.3f} s")
+        # ---- Normalizzazione e fattori fisici ----
+        elec_ = electron_energy[None, :, None]  # broadcasting per norm
+        sigt = 6.652458734983284e-25   # cm^2
+        c = 29979245800.0  # cm/s
+        norm = (3.0/4.0) * sigt * c / (elec_**2)
+        gamint = kernel* norm
 
-        b = 4 * photE0 * electron_energy
-        w = gamma_energy / electron_energy
-        q = w / (b * (1 - w))
-        fic = (
-            2 * q * np.log(q)
-            + (1 + 2 * q) * (1 - q)
-            + (1.0 / 2.0) * (b * q) ** 2 * (1 - q) / (1 + b * q)
-        )
+        #print("norm.shape:",norm.shape)
+        #print("Kernel.shape:",kernel.shape)
+        #print("")
 
-        gamint = fic * heaviside(1 - q) * heaviside(q - 1.0 / (4 * electron_energy**2))
-        gamint[np.isnan(gamint)] = 0.0
-
+        # ---- Integrazione sul seed photon field ----
         if phn.size > 1:
-            phn = phn.to(1 / (mec2_unit * u.cm**3)).value
-            gamint = trapz_loglog(gamint * phn / photE0, photE0, axis=0)  # 1/s
+            phn_ = phn.to(1 / (mec2_unit * u.cm**3)).value
+            start1 = time.time()
+            #gamint = trapz_loglog(gamint * phn_[None, None, :] / photE0[None, None, :], photE0, axis=-1)
+            #print("gamint.shape:",gamint.shape)
+            #print("gamint * phn_[None, None, :] / photE0[None, None, :].shape:",(gamint * phn_[None, None, :] / photE0[None, None, :]).shape)
+            #print(f"photE0.shape:{ photE0.shape}")
+
+            gamint = trapz_loglog_nd(gamint * phn_[None, None, :] / photE0[None, None, :], photE0)
+            #print(f"Tempo impiegato per gamint = trapz_loglog() : {time.time() - start1:.3f} s")
+            #print("gamint.shape:",gamint.shape)
+            print("")
         else:
-            phn = phn.to(mec2_unit / u.cm**3).value
-            gamint *= phn / photE0**2
+            #phn_ = phn.to(mec2_unit / u.cm**3).value
+            #phn_=(phn/mec2).value
+            phn_ = phn_.to(mec2_unit / u.cm**3).value
+            gamint *= phn_ / photE0**2
             gamint = gamint.squeeze()
 
-        # gamint /= mec2.to('erg').value
-
-        # r0 = (e**2 / m_e / c**2).to('cm')
-        # sigt = ((8 * np.pi) / 3 * r0**2).cgs
-        sigt = 6.652458734983284e-25
-        c = 29979245800.0
-
-        gamint *= (3.0 / 4.0) * sigt * c / electron_energy**2
-
+        #print(f"Tempo impiegato per _iso_ic_on_monochromatic : {time.time() - start:.3f} s")
+    
         return gamint
+
+    
     
     def _calc_specic(self, seed, outspecene):
+        start= time.time()
         log.debug("_calc_specic: Computing IC on {0} seed photons...".format(seed))
 
         Eph = (outspecene / mec2).decompose().value
@@ -618,6 +696,12 @@ class InverseCompton(BaseElectron):
                         self._gamma, T.to("K").value, Eph, theta
                     )
             else:
+                #print("self._gamma.shape:",self._gamma.shape)
+                #print("self.seed_photon_fields[seed]['energy'].shape:",self.seed_photon_fields[seed]["energy"].shape)
+                #print("self.seed_photon_fields[seed]['photon_density'].shape:",self.seed_photon_fields[seed]["photon_density"].shape)
+                #print("Eph.shape:",Eph.shape)
+                #print("")
+                
                 uf = 1
                 gamint = self._iso_ic_on_monochromatic(
                     self._gamma,
@@ -625,10 +709,16 @@ class InverseCompton(BaseElectron):
                     self.seed_photon_fields[seed]["photon_density"],
                     Eph,
                 )
-
+            #print(f"nelec.shape:{self._nelec.shape}")
+            #print(f"gamint.shape:{gamint.shape}")
+            #print(f" self._gamma.shape:{ self._gamma.shape}")
             lum = uf * Eph * trapz_loglog(self._nelec * gamint, self._gamma)
         lum = lum * u.Unit("1/s")
-
+    
+        #print("lum.shape:",lum.shape)
+        #print("lum/outspecene.shape:",(lum / outspecene).shape)
+        
+        #print(f"Tempo impiegato per _calc_specic : {time.time() - start:.3f} s")
         return lum / outspecene  # return differential spectrum in 1/s/eV
     
     def _spectrum(self, photon_energy):
@@ -646,13 +736,24 @@ class InverseCompton(BaseElectron):
         """
         validated_energy = _validate_ene(photon_energy)
 
+        #original_shape = validated_energy.shape
+        #flattened_energy = validated_energy.flatten()
+
         self.specic = []
 
         for seed in self.seed_photon_fields:
             # Call actual computation, detached to allow changes in subclasses
             self.specic.append(self._calc_specic(seed, validated_energy).to("1/(s eV)"))
 
+            #lum_flat = self._calc_specic(seed, flattened_energy).to("1/(s eV)")
+            #self.specic.append(lum_flat)
+
+        #total_flat = np.sum(self.specic, axis=0)
+        #total = total_flat.reshape(original_shape) * u.Unit("1/(s eV)")
+
         return np.sum(u.Quantity(self.specic), axis=0)
+        #return total
+    
     
     def flux(self, photon_energy, distance=1 * u.kpc, seed=None):
         """Differential flux at a given distance from the source from a single

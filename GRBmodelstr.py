@@ -1,8 +1,6 @@
+from log_config import setup_logger
+log = setup_logger(__name__)  
 
-import logging
-import os
-import warnings
-from collections import OrderedDict
 from multiprocessing import Pool
 
 import astropy
@@ -23,21 +21,35 @@ from Validator import (
     validate_scalar,
 )
 #from .model_utils import memoize
-from Utils import trapz_loglog
+from Utils import trapz_loglog,trapz_numba,simpson_logspace_nb,simpson_uniform
+from Utils import adaptive_shells_simple
 
 import Models
-import Radiative
+import RadiativeCopy as Radiative
+#import NO_UNITS_Radiative as Radiative
 
 import matplotlib.pyplot as plt
 
 from matplotlib import cm
 from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib.colorbar import ColorbarBase
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 from scipy.integrate import quad
+import time
+from datetime import datetime
+from joblib import Parallel, delayed
+from tqdm import tqdm
+import os
 
+import numpy as np
+import plotly.graph_objects as go
 
+import astropy.units as u
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib.patches import Patch
+from matplotlib.ticker import LogFormatterMathtext
 #-------------------------------------------------- static variables: ---------------------------------------------
 
 m_e = con.m_e.cgs.value
@@ -49,6 +61,8 @@ erg_to_eV = 624150912588.3258  # conversion from erg to eV
 sigma_T = con.sigma_T.cgs.value
 mpc2 = (con.m_p * con.c ** 2.).to('eV')
 mpc2_erg = mpc2.to('erg').value
+
+#---------------------------------------------------------- static functions: ------------------------------------------------
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     new_cmap = LinearSegmentedColormap.from_list(
@@ -81,54 +95,22 @@ def tobs(t,Lfactor,phi_deg):
     t_obs=(1-mu)*t+(mu*t)/(16*Lfactor**2)
     return t_obs
 
-#------------------------------------------------------------------------------------------------------------------
-
-# Emissività nel sistema della shell (puoi sostituirla con la tua funzione)
-def j_nu_prime(nu_prime):
-    # esempio di legge di potenza: j' ~ nu'^(-1)
-    return nu_prime**(-1)
-
-# Fattore Doppler
-def doppler_factor(Gamma, theta):
+def doppler_factor_on_axis(Gamma, theta):
     thetas_rad = np.radians(theta)
     beta = np.sqrt(1.0 - 1.0 / Gamma**2)
     return 1.0 / (Gamma * (1.0 - beta * np.cos(thetas_rad )))
 
-# Integrando da inserire nell'integrale
-def integrand(theta, nu_obs, z, Gamma, R, delta_R, theta_j):
-    delta = doppler_factor(Gamma, theta)
-    nu_prime = (1 + z) * nu_obs / delta
-    j_nu = j_nu_prime(nu_prime)
-    return np.sin(theta) * delta**2 * j_nu
+def doppler_factor(Gamma, theta,theta_obs, phi):
+    
+    # Convert to radians
+    #theta = np.deg2rad(theta)
+    #theta_obs = np.deg2rad(theta_obs)
+    #phi = np.deg2rad(phi)
+    
+    cos_psi = np.cos(theta) * np.cos(theta_obs) + np.sin(theta) * np.sin(theta_obs) * np.cos(phi)
+    beta = np.sqrt(1.0 - 1.0 / Gamma**2)
+    return 1.0 / (Gamma * (1.0 - beta * cos_psi ))
 
-# Flusso osservato
-def flux_observed(nu_obs, z, d_L, Gamma, R, delta_R, theta_j):
-    prefactor = (1 + z) * R**2 * delta_R / (2 * d_L**2)
-    integral, _ = quad(integrand, 0, theta_j,
-                       args=(nu_obs, z, Gamma, R, delta_R, theta_j))
-    return prefactor * integral
-
-#----------------------------------------------------------------------------------------------
-
-
-# Flusso osservato sommando N sottojet
-def flux_observed_multi_jet(nu_obs, z, d_L, Gamma, R, delta_R, theta_j, N):
-    theta_edges = np.linspace(0, theta_j, N + 1)
-    prefactor = (1 + z) * R**2 * delta_R / (2 * d_L**2)
-    total_flux = 0.0
-
-    for n in range(N):
-        theta_min = theta_edges[n]
-        theta_max = theta_edges[n + 1]
-
-        integral, _ = quad(integrand, theta_min, theta_max,
-                           args=(nu_obs, z, Gamma, R, delta_R))
-        total_flux += integral
-
-    return prefactor * total_flux
-
-
-#-----------------------------------------------------------------------------------------------------------
 
 #------------------------------------------------- static methods --------------------------------------------------
 
@@ -366,9 +348,9 @@ class GRBModel_topstruc:
     def __init__(self, eiso_zero, dens, tstart, tstop, redshift, pars, labels,
                  scenario='ISM',
                  energy_profile='gaussian',
-                 shells=10, # number of concentric shells
-                 #thetaend=10.0*u.deg,
+                 theta_end=12.0*u.deg,
                  thetacore=5.0*u.deg, # core angle of the jet
+                 theta_obs=0.0*u.deg, # viewing angle
                  mass_loss=0,
                  wind_speed=0,
                  cooling_constrain=True,
@@ -420,11 +402,13 @@ class GRBModel_topstruc:
             
         self.Eiso_zero = eiso_zero  # Eiso of the burst
         self.thetacore = thetacore #theta core of the jet in units of grad
-        self.thetaend= 0 # truncation angle outside of which the energy is initially 0
+        self.thetaend= theta_end # truncation angle outside of which the energy is initially 0
+        self.theta_obs=theta_obs # viewing angle in units of grad
         self.energy_profile=energy_profile
-        self.shells= shells
-        self.theta_limits=0
-        self.theta_shells=0
+        self.shells= 0
+        self.theta_limits=0*u.deg
+        self.theta_shells=0*u.deg
+        self.mu_edges=0
         self.Eavg_array = 0
         self.density = dens  # ambient density around the burst units of cm-3
         self.tstart = tstart  # units of s
@@ -466,80 +450,41 @@ class GRBModel_topstruc:
         self.ic_compGG2 = 0  # inverse compton component of the model with gammagamma absorption with METHOD 2
         
     
-    def E_theta_gaussian(self,theta, thetaw_deg=12.0):
-        self.thetaend= thetaw_deg
-        thetacore=self.thetacore.value
-        E = np.zeros_like(theta)
-        inside = theta <= thetaw_deg
+    def E_theta_gaussian(self,theta):
+        thetaw_deg=self.thetaend
+        thetacore=self.thetacore
         Eiso_zero=self.Eiso_zero
-        E[inside]= Eiso_zero * np.exp(-(theta[inside]**2) / (2 * thetacore**2))
+    
+        theta_rad = np.deg2rad(theta.value)
+        thetacore_rad = np.deg2rad(thetacore.value)
+        thetaw_rad = np.deg2rad(thetaw_deg.value)
+
+        E = np.zeros_like(theta_rad)
+        inside = theta_rad <= thetaw_rad
+        E[inside] = Eiso_zero * np.exp(-(theta_rad[inside]**2) / (2 * thetacore_rad**2))
         E = np.maximum(E, 1e-40) #floor to avoid numerical issues
         return E 
-      
-    def E_theta_powerlaw(self,theta,thetaw_deg=20.0,b=4.5):
-        self.thetaend= thetaw_deg
-        thetacore=self.thetacore.value
-        Eiso_zero=self.Eiso_zero
-        
-        E = np.zeros_like(theta)
-        inside = theta <= thetaw_deg
-        E[inside] =Eiso_zero * (1 + (theta[inside]**2) / (b * thetacore**2))**(-b/2)
-        E = np.maximum(E, 1e-40) #floor to avoid numerical issues
-        return E 
+    
+    
+    def E_theta_powerlaw(self, theta, b=4.5):
+        #self.thetaend = thetaw_deg
+        thetaw_deg = self.thetaend
+        thetacore = self.thetacore
+        Eiso_zero = self.Eiso_zero
 
-      
-    """def gammaval(self,avtime,theta):
-        
-        Computes the Lorentz factor and the size of the region
-        Expression from Blandford&McKee,1976.
+        theta_rad = np.deg2rad(theta.value)
+        thetacore_rad = np.deg2rad(thetacore.value)
+        thetaw_rad = np.deg2rad(thetaw_deg.value)
 
-        Gamma^2 = E_iso / Mc^2
+        E = np.zeros_like(theta_rad)
+        inside = theta_rad <= thetaw_rad
+        E[inside] = Eiso_zero * (1 + (theta_rad[inside]**2) / (b * thetacore_rad**2))**(-b/2)
+        E = np.maximum(E, 1e-40)#floor to avoid numerical issues
+        return E
 
-        where M is the mass of the material swept by the shock which can be computed in case of homogenous
-        density or wind scenario, with the density that decreases as r^-2 (see documentation file for more details).
-        The calculation of the radius uses the relation
-
-        R = A * Gamma^2 * (ct)
-
-        where A can be 4 (for Wind scenario), 8 (ISM scenario), 6 (for the average)
-
-        Time is the average between the tstart and tstop.
-        The functions takes automatically the initialization parameters
-        
-        
-        #theta_shells = self.theta_shells
-        theta = np.atleast_1d(theta)
-
-        
-        if (self.scenario == 'ISM'):
-            self.depthpar = 9. / 1.
-            if self.energy_profile=='gaussian':
-                Energy = self.E_theta_gaussian(theta, thetaw_deg=12)
-            elif self.energy_profile == 'powerlaw':
-                Energy = self.E_theta_powerlaw(theta,thetaw_deg=20,b=4.5)
-            else:
-                raise ValueError(f"Unknown energy profile: {self.energy_profile}")       
-            
-            #Gamma = (1. / 8.) ** (3. / 8.) * (3.0 * Energy / (4.0 * np.pi * self.density * mpc2_erg * (c * avtime) ** 3.0)) ** 0.125 OLD
-            Gamma =  (3.0 * Energy / (8.0 * np.pi *512.0* self.density * mpc2_erg * (c * avtime) ** 3.0)) ** 0.125
-            R = 8. * c * avtime * Gamma ** 2
-            
-            self.gamma = Gamma
-            self.sizer = R
-            self.Eavg_array = Energy
-        else:
-            text = "Chosen scenario: %s\n" \
-                   "The scenario indicated not found. Please choose 'ISM' scenario" % self.scenario
-            raise ValueError(text)    
-        
-        if Gamma.size == 1:
-          return Gamma[0], R[0]
-        else:
-          return Gamma, R"""
-          
+       
     def calc_photon_density(self, Lsy, sizereg,theta_inf,theta_sup):
         """
-
         Parameters
         ----------
             Lsy : array_like
@@ -557,43 +502,6 @@ class GRBModel_topstruc:
 
         return Lsy / (Omega_i * sizereg ** 2. * c * u.cm / u.s)
       
-    """def load_model_and_prior(self):
-        
-        Associates the bound methods
-        naimamodel and lnprior to the chosen
-        model and prior function.
-
-        Modify here if you want to change the model
-        or the priors
-        
-        theta_limits = np.linspace(0, self.thetaend, self.shells+1)
-        self.theta_limits=theta_limits 
-        theta_inf = theta_limits[:-1]  # N elementi
-        theta_sup = theta_limits[1:]
-        theta_shells = 0.5 * (theta_inf + theta_sup)
-        self.theta_shells=theta_shells 
-        
-        self.shock_energy=np.zeros(self.shells)*u.erg
-        self.shell_dept=np.zeros(self.shells)
-        self.volume=np.zeros(self.shells)
-      
-      
-        self.gammaval(self.avtime, self.theta_shells)  # call the function to compute the basic GRB initialization parameters
-        self.naimamodel = self._SSCmodel_ind1fixed
-        #-------------------------- change here for the prior functions -------------------------------------
-        # For performance it is better to use if statements here to avoid having them in the prior function
-        # the prior function is called everytime and it's better if it does not have if statements inside
-        
-        if self.synch_nolimit:
-            self.lnprior = self._lnprior_ind2free_nolim
-        else:
-            if self.cooling_constrain:
-                self.lnprior = self._lnprior_ind2free_wlim_wcooling_constrain
-            else:
-                self.lnprior = self._lnprior_ind2free_wlim
-        """
-
- 
 
     def compute_dynamics(self, avtime, theta):
         """Calcola Lorentz factor, raggio e energia"""
@@ -602,46 +510,79 @@ class GRBModel_topstruc:
         if (self.scenario == 'ISM'):
                     self.depthpar = 9. / 1.
                     if self.energy_profile=='gaussian':
-                        Energy = self.E_theta_gaussian(theta, thetaw_deg=12)
+                        Energy = self.E_theta_gaussian(theta)
                     elif self.energy_profile == 'powerlaw':
-                        Energy = self.E_theta_powerlaw(theta,thetaw_deg=20,b=4.5)
+                        Energy = self.E_theta_powerlaw(theta,b=4.5)
                     else:
                         raise ValueError(f"Unknown energy profile: {self.energy_profile}")  
             
 
         Gamma = (3.0 * Energy / (8.0 * np.pi * 512.0 * self.density * mpc2_erg * (c * avtime) ** 3.0)) ** 0.125
+        Gamma = np.maximum(Gamma, 1.0)
         R = 8. * c * avtime * Gamma ** 2
 
         return Gamma, R, Energy
     
+
+
     def _setup_shells(self):
-
-        if self.energy_profile=='gaussian':
-            self.thetaend= 12.0
-        elif self.energy_profile == 'powerlaw':
-            self.thetaend= 20.0
-
-        theta_limits = np.linspace(0, self.thetaend, self.shells + 1)
-        print("Theta limits (deg):", theta_limits)
-        self.theta_limits = theta_limits
-        self.theta_shells = 0.5 * (theta_limits[:-1] + theta_limits[1:])
         
-        self.shock_energy = np.zeros(self.shells) * u.erg
-        self.shell_dept = np.zeros(self.shells)
-        self.volume = np.zeros(self.shells)
+        log.info("")
+        log.info("--- SHELL SETUP: START ---" )
+        log.info("")
 
-    def load_model_and_prior(self):
-        """ Geometry setup model selection"""
-        print("")
-        print(" ------------------ Starting structured GRB initialization ------------------")
+        log.info(f"Selected profile:{self.energy_profile}")
+
+        theta_min, theta_max = 0.0, self.thetaend.value
+        theta_array=np.linspace(theta_min,theta_max,200)*u.deg
+
+        phi=0.0
+        Gamma_array, R_array, Energy_array = self.compute_dynamics(self.avtime, theta_array)
+
+        f_Gamma = lambda th_deg: np.interp(th_deg, theta_array, Gamma_array)
         
-        self._setup_shells()
+        f_theta = lambda th_deg: doppler_factor(
+                                f_Gamma(th_deg),
+                                np.deg2rad(th_deg),
+                                np.deg2rad(self.theta_obs),
+                                phi)
+
+        theta_limits= adaptive_shells_simple(f_theta,theta_min, theta_max,tol=0.4, step_deg=0.1)
+       
+        self.shells=len(theta_limits)-1
+        self.theta_limits = theta_limits*u.deg
+        self.theta_shells = 0.5 * (theta_limits[1:] + theta_limits[:-1])*u.deg
+
         Gamma, R, Energy = self.compute_dynamics(self.avtime, self.theta_shells)
-        print("Gamma:", Gamma)
+
         self.gamma = Gamma
         self.sizer = R
         self.Eavg_array = Energy
 
+        # Stampa riassuntiva
+        log.info(f"{'Shell':<6}  {'θ_min [deg]':>15} {'θ_max [deg]':>15} {'θ_mid [deg]':>15} {'E(θ)':>15} {'Γ(θ)':>15} " )
+        for i in range(len(theta_limits)-1):
+            
+            log.info(f"{i+1:<6} {theta_limits[i]:>15.3f} {theta_limits[i+1]:>15.3f}  {np.round(self.theta_shells,2)[i]:>15.3f} {Energy[i]:>15.3e} {Gamma[i]:>15.3f}")
+
+        self.shock_energy = np.zeros(self.shells) * u.erg
+        self.shell_dept = np.zeros(self.shells)
+        self.volume = np.zeros(self.shells)
+
+        log.info("")
+        log.info("--- SHELL SETUP: END ---" )
+        log.info("")
+
+    def load_model_and_prior(self):
+        """ Geometry setup model selection"""
+      
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STRUCTURED GRB initialization: START "))
+        log.info("")
+
+        #######################################################################################
+        self._setup_shells()
         self.naimamodel = self._SSCmodel_ind1fixed
 
         #-------------------------- change here for the prior functions -------------------------------------
@@ -656,8 +597,10 @@ class GRBModel_topstruc:
             else:
                 self.lnprior = self._lnprior_ind2free_wlim
         """
-        print(" ------------------ Ending structured GRB initialization ------------------")
-        print("")
+        log.info("")
+        log.info("#{:^103}#".format("STRUCTURED GRB initialization: END "))
+        log.info("#" * 105)
+        log.info("")
         
     def _SSCmodel_ind1fixed(self, pars, data):
         """"
@@ -680,76 +623,90 @@ class GRBModel_topstruc:
            electron_distribution : tuple
              electron distribution as tuple energy, electron_distribution(energy) in units of erg
         """
-        print("")
-        print("-------------------------- Starting structured GRB model computation --------------------------")
-        n_shells = self.shells  # number of shells to consider
-        energy_grid = data['energy']  # array di energie, dimensione (n_energy,)
+
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STRUCTURED GRB computation: START "))
+        log.info("#" * 105)
+        log.info("")
+
+        n_shells = self.shells                                          # number of shells to consider
+        energy_grid = data['energy']                                    # array di energie, dimensione (n_energy,)
         n_energy = len(energy_grid)
 
         # Inizializza una matrice vuota (n_shells x n_energy)
-        self.synch_comp_approx = np.zeros((n_shells, n_energy))* (u.erg / (u.cm**2 * u.s)) 
-        self.ic_comp_approx = np.zeros((n_shells, n_energy))* (u.erg / (u.cm**2 * u.s))
-        self.synch_comp = np.zeros((n_shells, n_energy))* (u.erg / (u.cm**2 * u.s))
-        self.ic_comp = np.zeros((n_shells, n_energy)) * (u.erg / (u.cm**2 * u.s))
-        self.synch_compGG2 = np.zeros((n_shells, n_energy))* (u.erg / (u.cm**2 * u.s))
-        self.ic_compGG2= np.zeros((n_shells, n_energy)) * (u.erg / (u.cm**2 * u.s))
+        energy_unit=(u.erg / (u.cm**2 * u.s))
+        self.synch_comp_approx = np.zeros((n_shells, n_energy))*energy_unit
+        self.ic_comp_approx = np.zeros((n_shells, n_energy))* energy_unit
+        self.synch_comp = np.zeros((n_shells, n_energy))* energy_unit
+        self.ic_comp = np.zeros((n_shells, n_energy)) * energy_unit
+        self.synch_compGG2 = np.zeros((n_shells, n_energy))* energy_unit
+        self.ic_compGG2= np.zeros((n_shells, n_energy)) * energy_unit
+
+        model_wo_abs = np.zeros(n_energy) * energy_unit
+        model= np.zeros(n_energy) * energy_unit
         #-------------------------------------------------------------------------------------------------
 
-        eta_e = 10. ** pars[0] # parameter 0: fraction of available energy ending in non-thermal electrons
+        eta_e = 10. ** pars[0]                             # parameter 0: fraction of available energy ending in non-thermal electrons
         self.eta_e = eta_e
-        ebreak = 10. ** pars[1] * u.TeV  # parameter 1: linked to break energy of the electron distribution (as log10)
-        alpha1 = pars[2] - 1.  # fixed to be a cooling break
-        alpha2 = pars[2]  # parameter 2: high energy index of the ExponentialCutoffBrokenPowerLaw
-        e_cutoff = (10. ** pars[3]) * u.TeV  # parameter 3: High energy cutoff of the electron distribution (as log10)
+        ebreak = 10. ** pars[1] * u.TeV                    # parameter 1: linked to break energy of the electron distribution (as log10)
+        alpha1 = pars[2] - 1.                              # fixed to be a cooling break
+        alpha2 = pars[2]                                   # parameter 2: high energy index of the ExponentialCutoffBrokenPowerLaw
+        e_cutoff = (10. ** pars[3]) * u.TeV                # parameter 3: High energy cutoff of the electron distribution (as log10)
         
-        bfield = 10. ** (pars[4]) * u.G  # parameter 4: Magnetic field (as log10)
+        bfield = 10. ** (pars[4]) * u.G                    # parameter 4: Magnetic field (as log10)
         self.B=bfield
-        redf = 1. + self.redshift  # redshift factor
+        redf = 1. + self.redshift                          # redshift factor
         
         #doppler_approx = self.gamma  # assumption of doppler boosting ~ Gamma
         size_reg = self.sizer * u.cm  # size of the region as astropy quantity
         
-        #theta_array = np.linspace(0, self.thetaend, self.shells+1)
-        theta_inf =self.theta_limits[:-1]  # N elementi
-        theta_sup =self.theta_limits[1:]   # N elementi
+        
+        # -------------------- Volume shell where the emission takes place. The factor 9 comes from considering the shock in the ISM ----------------
+        #--------------------- (Eq. 7 from GRB190829A paper from H.E.S.S. Collaboration) ------------------------------------------------------------
 
-        print("Theta inf (deg):", theta_inf)
-        print("Theta sup (deg):", theta_sup)
-        
-        # ------------------- Volume shell where the emission takes place. The factor 9 comes from considering the shock in the ISM ----------------
-        #  (Eq. 7 from GRB190829A paper from H.E.S.S. Collaboration)
-        #vol = 4. * np.pi * self.sizer ** 2. * (self.sizer / (9. * self.gamma))
-        
-        target_unit = u.erg / (u.cm**2 * u.s)
-        model_wo_abs = np.zeros(len(data['energy'])) * target_unit
-        model= np.zeros(len(data['energy'])) * target_unit
         Gamma=self.gamma
 
-        
+        theta_min=self.theta_limits[:-1]
+        theta_max=self.theta_limits[1:]
+
+
         for i in range(n_shells):
 
-          print("")
-          print("Shell number:", i+1, "over", n_shells)  
+          log.info("")
+          log.info("#" * 40)
+          log.info("#{:^38}#".format(f"Shell number:{i+1} over {n_shells}"))
+          log.info("#" * 40)
+          log.info("")
+          
           E_shell = self.Eavg_array[i]  
           Gamma_i = Gamma[i]
-          print("Gamma:", Gamma_i)
-          print("Energy in the shell (erg):", E_shell)
+          Dl = self.Dl  # distanza con unità (es. Mpc)
 
-          if (E_shell <= 1e-40) or (Gamma_i <= 1.01):
-                print(f"Skipping shell {i}: E={E_shell}, Gamma={Gamma_i}")
+          if (E_shell <= 1e-40) or (Gamma_i <= 1.00):
+                log.info(f"Skipping shell {i}: E={E_shell}, Gamma={Gamma_i}")
                 continue
           
           deltaR=self.sizer[i]/(self.depthpar*Gamma_i)
           self.shell_dept[i]=deltaR
-          Omega_i = 2 * np.pi * (np.cos(np.radians(theta_inf[i])) - np.cos(np.radians(theta_sup[i])))*2
-          volume_element= self.sizer[i]**2.*deltaR*Omega_i
+          theta_inf=theta_min[i]
+          theta_sup=theta_max[i]
+          theta_eff = self.theta_shells[i]  # valore rappresentativo della shell
+
+          log.info("")
+          log.info(f"Gamma shell {i+1}: {np.round(Gamma_i,2)}")
+          log.info(f"Energy in the shell{i+1} (erg): {E_shell:.2e}")
+          log.info("")
+
+          delta_Omega = 2*np.pi * (np.cos(theta_inf)-np.cos(theta_sup))
+          volume_element= self.sizer[i]**2.*deltaR*delta_Omega
           self.volume[i]=volume_element
-          
-          shock_energy = 2. * Gamma_i* self.density * mpc2_erg * u.erg  # available energy in the shock
+
+          shock_energy = 2. * (Gamma_i**2.0)* self.density * mpc2_erg * u.erg  # available energy in the shock
           self.shock_energy[i] = shock_energy
 
-        
-          eemax = e_cutoff.value * 1e13 # maximum energy of the electron distribution, based on 10 * cut-off value in eV (1 order more then cutoff)
+          # maximum energy of the electron distribution, based on 10 * cut-off value in eV (1 order more then cutoff)
+          eemax = e_cutoff.value * 1e13        
           self.eta_b = (bfield.value ** 2 / (np.pi * 8.)) / shock_energy.value  # ratio between magnetic field energy and shock energy   
         
           #--------------------------------------------------------------------------------------------------------------------------
@@ -764,22 +721,26 @@ class GRBModel_topstruc:
           E_medium = trapz_loglog(energies * eldis, energies) / trapz_loglog(eldis, energies)
           K=E_medium/fact1
         
-          emin= Emin_0/K  # calculation of the minimum injection energy. See detailed model explanationn(! iteration)
+          emin= Emin_0/K                    # calculation of the minimum injection energy. See detailed model explanationn(! iteration)
           self.Emin = emin
           #--------------------------------------------- E min non iterative process -------------------------------------------------
         
           #emin=(p-2)/(p-1)*fact1 # p=? abbiamo una broken powerlaw, quindi sono 2 
         
           #----------- (https://www.cv.nrao.edu/~sransom/web/Ch5.html)------------------------
+          start=time.time()
           SYN = Radiative.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
-      
+          log.info(f"SYN class norm1: {time.time()-start}s")
           #----------------------------------------------------------------------------------------------------------------------------
-        
+
           amplitude = ((eta_e * shock_energy * volume_element) / SYN.compute_Etot(Eemin=emin, Eemax=eemax * u.eV)) / u.eV
 
         
           ECBPL = Models.ExponentialCutoffBrokenPowerLaw(amplitude, 1. * u.TeV, ebreak, alpha1, alpha2, e_cutoff)
+          
+          start=time.time()
           SYN = Radiative.Synchrotron(ECBPL, B=bfield, Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+          log.info(f"SYN class norm: {time.time()-start}s")
           self.Wesyn += SYN.compute_Etot(Eemin=emin, Eemax=eemax * u.eV)           # E tot in the electron distribution
         
           #----- energy array to compute the target photon number density to compute IC radiation and gamma-gamma absorption -----------
@@ -793,90 +754,103 @@ class GRBModel_topstruc:
           Esy = np.logspace(min_synch_ene, cutoff_charene + 1, bins) * u.eV
         
           Lsy = SYN.flux(Esy, distance=0 * u.cm) # number of synchrotron photons per energy per time (units of 1/eV/s)
-          phn_sy = self.calc_photon_density(Lsy, size_reg[i],theta_inf[i],theta_sup[i])   # number density of synchrotron photons (dn/dE) units of 1/eV/cm3
+          phn_sy = self.calc_photon_density(Lsy, size_reg[i],theta_inf,theta_sup)   # number density of synchrotron photons (dn/dE) units of 1/eV/cm3
  
           
         #----------------------------------------------------------------------------------------------------------------------
           self.esycool = (synch_charene(bfield, ebreak))
-          self.synchedens = trapz_loglog(Esy * phn_sy, Esy, axis=0).to('erg / cm3')
-                
-          IC = Radiative.InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], 
-                                        Eemin=emin, Eemax=eemax * u.eV, nEed=20)
-        
-          #--------------------------- SYN and IC in detector frame-------------------------------------
-      
+          self.synchedens = trapz_loglog(Esy * phn_sy, Esy, axis=-1).to('erg / cm3')
+              
+          start=time.time()
+          IC = Radiative.InverseCompton(ECBPL, seed_photon_fields=[['SSC', Esy, phn_sy]], Eemin=emin, Eemax=eemax * u.eV, nEed=20)
+          log.info(f"IC class: {time.time()-start}s")
           
-          synch_comp_approx=(Gamma[i] ** 2.) * SYN.sed(data['energy'] / Gamma_i *redf, distance=self.Dl)*redf
-          print("synch_comp_approx max",np.max(synch_comp_approx)) 
-          self.synch_comp_approx[i,:] = synch_comp_approx 
-          print(type(self.synch_comp_approx))
+          log.info("-------------------------------START : APPROX SPECTRUM ---------------------------------")
+          start_synch = time.time()
+          synch_comp_approx=(Gamma_i** 2.) * SYN.sed(energy_grid *redf/ Gamma_i, distance=Dl)*redf
+          self.synch_comp_approx[i,:] = synch_comp_approx.to(energy_unit)
+          log.info(f"SYN SED approx time shell {i+1}: {time.time() - start_synch:.3f} s")
 
-          ic_comp_approx=(Gamma[i] ** 2.) *  IC.sed(data['energy'] / Gamma_i* redf, distance=self.Dl)*redf
-          print("ic_comp_approx max",np.max(ic_comp_approx))
-          self.ic_comp_approx [i,:] =   ic_comp_approx 
-          print(type(self.ic_comp_approx))
-
-          #SSC_wo_abs = synch_comp_approx + ic_comp_approx
-          #model_wo_abs += SSC_wo_abs
+          start_ic = time.time()
+          ic_comp_approx=(Gamma_i ** 2.) *  IC.sed(energy_grid* redf / Gamma_i, distance=Dl)*redf
+          self.ic_comp_approx [i,:] =   ic_comp_approx.to(energy_unit)
+          log.info(f"IC SED approx time shell {i+1}: {time.time() - start_ic:.3f} s")
           
-          #--------------------------------------------------------------------------------------------------------------------
-
-          # --- Parametri ---
-          Dl = self.Dl  # distanza con unità (es. Mpc)
-          E_obs = data['energy'].quantity  # array di energie con unità (es. eV)
-
-          #unit_syn = SYN.sed(E_obs[0:1], distance=Dl).unit
-          n_theta =10 
-          #theta_min=self.theta_limits[i]
-          #theta_max=self.theta_limits[i+1]     # risoluzione angolare, aumenta se serve
-
-          #thetas_deg= np.linspace(theta_inf[i], theta_sup[i], n_theta)
-  
-          #thetas_rad = np.deg2rad(thetas_deg) 
-          #print("Theta values1 (rad):", thetas_rad)
-
-          mu_max= np.cos(np.deg2rad(theta_inf[i]))
-          mu_min = np.cos(np.deg2rad(theta_sup[i]))
-          mu_vals = np.linspace(mu_min, mu_max, n_theta)
-         
+          log.info("--------------------------------- END: APPROX SPECTRUM ---------------------------------")
+          log.info("")
+          log.info("################################# START: TRUE SPECTRUM #################################")
+          log.info("")
           
-          thetas = np.arccos(mu_vals)  # uniform in mu
-          print("thetas values2 (rad):", thetas)
-          #weights = np.sin(thetas) * 2*np.pi
-          deltas = doppler_factor(Gamma[i], thetas)  # shape (n_theta,)  approximation because gamma is varyng little in the shell
-          print("Doppler factors:", deltas)
-         
+          n_phi = 20
+          phi = np.linspace(0.0, 2*np.pi, n_phi) #rad
 
-          # --- Loop sulle energie, vettoriale sugli angoli ---
-          synch_flux = []
-          ic_flux = []
-
-          for E in E_obs:
-              # energia comovente per ogni angolo
-              E_com = (E * redf / deltas).to(u.eV)
-
-              # calcolo delle SED (array 1D)
-              sed_syn = SYN.sed(E_com, distance=Dl).value
-              sed_ic  = IC.sed(E_com,  distance=Dl).value
-
-              integrand_syn = (deltas**2) * sed_syn # * weights
-              integrand_ic  = (deltas**2) * sed_ic # * weights
-
-              # integrazione su theta (trapz veloce)
-              #flux_syn = weights* np.trapz(integrand_syn, thetas)
-              flux_syn = 2*np.pi * np.trapz(integrand_syn, mu_vals)
-              flux_ic  = 2*np.pi * np.trapz(integrand_ic,  mu_vals)
-
-              synch_flux.append(flux_syn)
-              ic_flux.append(flux_ic)
-
+          D = doppler_factor(Gamma_i, np.deg2rad(theta_eff), np.deg2rad(self.theta_obs), phi)  # array shape (n_phi,)
+          log.info(f"D shape:{D.shape}")
+          #######################################################################################################
+          #Gamma_inf, R, Energy = self.compute_dynamics(self.avtime,theta_inf)
+          #Gamma_sup, R, Energy = self.compute_dynamics(self.avtime,theta_sup)
           
-          self.synch_comp[i,:] = synch_flux* (u.erg / (u.cm**2 * u.s)) 
-          self.ic_comp [i,:] =   ic_flux* (u.erg / (u.cm**2 * u.s)) 
+          #theta_deg = np.linspace(theta_inf, theta_sup, 40)
+          #theta_rad = np.deg2rad(theta_deg)
+
+          #Gamma_vals, R, Energy  = self.compute_dynamics(self.avtime, theta_deg)            
           
-          SSC_wo_abs = synch_flux* (u.erg / (u.cm**2 * u.s))  + ic_flux* (u.erg / (u.cm**2 * u.s)) 
-          model_wo_abs += SSC_wo_abs
-        
+          #Theta, Phi = np.meshgrid(theta_rad, phi, indexing="ij")
+          #D_vals = doppler_factor(Gamma_vals[:, np.newaxis], Theta, np.deg2rad(self.theta_obs), Phi)
+
+          #D_max = np.nanmax(D_vals, axis=0)   # shape (10,)
+          #D_min = np.nanmin(D_vals, axis=0)   # shape (10,)
+          #D2 = 0.5 * (D_max + D_min)
+          #print("D2.shape",D2.shape)
+          #print("D2:",D2)
+          #print(f"D2 max: {np.max(D2)}")
+          #print(f"D2 min: {np.min(D2)}")
+
+          #######################################################################################################
+
+          #Doppler_int = np.trapz(D[None, :]**2, phi, axis=-1)
+          #print("Integrale fattore Doppler:",Doppler_int)
+          
+          # Energies comoving per tutta la shell (broadcasting su phi)
+          E_com_shell = (energy_grid[:, None] * redf / D[None, :])  # shape (n_E, n_phi)
+
+          # sed su array 2D (E x phi)
+          start = time.time()
+          sed_syn_shell = SYN.sed(E_com_shell, distance=Dl).value
+          log.info(f"Time for SYN.sed in shell : {time.time() - start:.3f} s")
+
+          start = time.time()
+          sed_ic_shell  = IC.sed(E_com_shell, distance=Dl).value
+          log.info(f"Time for IC.sed in shell : {time.time() - start:.3f} s")
+
+          # Integrale su phi
+          integrand_syn = sed_syn_shell * (D[None, :]**2) / delta_Omega
+          integrand_ic  = sed_ic_shell  * (D[None, :]**2) / delta_Omega
+          
+          log.info("")
+          log.info("------------------------------ Integration phi START ------------------------------------")
+          
+
+          start = time.time()
+          flux_syn_total = simpson_uniform(integrand_syn, phi) # shape (n_E,)
+          log.info(f"Time for integrate SYN on phi : {time.time() - start:.6f} s")
+
+          #------------------------------------------------
+
+          start = time.time()
+          flux_ic_total  = simpson_uniform(integrand_ic,  phi)
+          log.info(f"Tempo impiegato per integrare ic shell con simpson uniform : {time.time() - start:.6f} s")
+
+          self.synch_comp[i, :] = redf* flux_syn_total * energy_unit
+          self.ic_comp[i, :]    = redf* flux_ic_total  * energy_unit
+
+          model_wo_abs += self.synch_comp[i, :] + self.ic_comp[i, :]
+
+          log.info("------------------------------ Integration phi END ----------------------------------")
+          log.info("")
+          log.info("############################## END: TRUE SPECTRUM ###################################")
+          log.info("")
+
           #-------------------------- Gamma Gamma Absorption ----------------------------------------------------------------------
           # Optical depth in a shell of width R/(9*Gamma) after transformation of the gamma ray energy of the data in the grb frame
           tauval = tau_val(data['energy'] / Gamma[i] * redf, Esy, phn_sy, self.sizer[i] / (9 * self.gamma[i]) * u.cm)
@@ -887,23 +861,26 @@ class GRBModel_topstruc:
           #model = (self.synch_compGG + self.ic_compGG) 
 
           #-------------------------------- METHOD 2 --------------------------------------------------------------------
-          """mask = tauval > 1.0e-4  # fixed level, you can choose another one
-          self.synch_compGG2[i,:] = synch_comp.copy()
-          self.ic_compGG2[i,:] = ic_comp.copy()
-          self.synch_compGG2[i,:][mask] = synch_comp[mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
-          self.ic_compGG2[i,:][mask] = ic_comp[mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
+          mask = tauval > 1.0e-4  # fixed level, you can choose another one
+          self.synch_compGG2[i,:] = self.synch_comp[i,:].copy()
+          self.ic_compGG2[i,:] = self.ic_comp[i,:].copy()
+          self.synch_compGG2[i,:][mask] = self.synch_comp[i,:][mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
+          self.ic_compGG2[i,:][mask] = self.ic_comp[i,:][mask] / (tauval[mask]) * (1. - np.exp(-tauval[mask]))
           SSC = self.synch_compGG2[i,:] + self.ic_compGG2[i,:]
-          model += SSC"""
+          model += SSC
           
-          #-------------------- save the electron distrivution ---------------------------
-          ener = np.logspace(np.log10(emin.to('GeV').value), 8,500) * u.GeV  # Energy range to save the electron distribution from emin to 10^8 GeV
-          eldis = ECBPL(ener)  # Compute the electron distribution
-          electron_distribution = (ener, eldis)
-          
-        print("-------------------- Ending strucutured GRB computation --------------------")
-        print("")
+        #-------------------- save the electron distrivution ---------------------------
+        #ener = np.logspace(np.log10(emin.to('GeV').value), 8,500) * u.GeV  # Energy range to save the electron distribution from emin to 10^8 GeV
+        #eldis = ECBPL(ener)  # Compute the electron distribution
+        #electron_distribution = (ener, eldis)'''
+
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STRUCTURED GRB computation: END "))
+        log.info("#" * 105)
+        log.info("")
         
-        return model,model_wo_abs, electron_distribution  # model returns model and electron distribution
+        return model,model_wo_abs  # model returns model and electron distribution
 
 
     def get_Benergydensity(self):
@@ -920,7 +897,50 @@ class GRBModel_topstruc:
         """
 
         return self.Wesyn  # which is the total electron energy injected
-      
+
+
+    def print_GRB_status(self):
+        
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STRUCTURED GRB STATUS: START "))
+        log.info("#" * 105)
+        log.info("")
+
+        # Defining a uniform width fo colummn
+        label_width = 55
+        val_width = 20
+        
+        def line(label, value, fmt="g", unit=""):
+            log.info(f"{label:<{label_width}} {value:{val_width}.{3}{fmt}} {unit}")
+
+    
+        line("Isotropic Energy [erg]:", self.Eiso_zero )
+        line("Ambient density [cm⁻³]:", self.density)
+        line("Average evaluation time [s]:",self.avtime)
+        line("Redshift:",self.redshift)
+        line("Luminosity Distance [cm]",self.Dl)
+        log.info(f"Scenario:{self.scenario}")
+        line("Magnetic field B:", self.B)
+        line("ηₑ:",self.eta_e)
+        line("η_B:",self.eta_b)
+        
+        log.info("-" * 105)
+        line("Number of concentric shells:",self.shells)
+        log.info(f"Energy profile:{self.energy_profile}")
+        log.info(f"Gamma factor (Boosting):{self.gamma}")
+
+        log.info(f"Shock energy density (ω): {self.shock_energy}")
+        log.info(f"Minimum injection energy [erg]: {self.Emin}")
+        log.info(f"Total energy in electrons [erg]: {self.Wesyn}")
+
+        log.info("")
+        log.info("#" * 105)
+        log.info("#{:^103}#".format(" STRUCTURED GRB STATUS: END "))
+        log.info("#" * 105)
+        log.info("")
+    
+
     def plot_sed_fast(self, emin, emax, ymin, ymax):
         
         """ Parameters
@@ -977,8 +997,9 @@ class GRBModel_topstruc:
         plt.show
         #---------------------------------------------------------------------------------------------------- 
         
-    def plot_sed(self, emin, emax,order_bottom=6,plot_approx_spectrum=True,plot_true_spectrum=False,plot_approx_shells=False,plot_true_shells=False,
-                 Save=False,Name="SSC_plot2",path="./"):
+    def plot_sed(self, emin, emax,order_bottom=6,plot_approx_spectrum=True,plot_true_spectrum=False,
+                 plot_approx_shells=False,plot_true_shells=False,
+                 Save=False,Path=None,Name=None):
         
         """ Parameters
           emin : float
@@ -986,6 +1007,7 @@ class GRBModel_topstruc:
           emax : float
             maximum energy of the interval (in eV)
         """
+        log.info("Plotting SED...")
         
         bins = int(np.log10(emax/emin) * 20.)  # use 20 bins per decade
         newene = Table([np.logspace(np.log10(emin), np.log10(emax), bins) * u.eV], names=['energy'])  # energy in eV
@@ -1001,19 +1023,14 @@ class GRBModel_topstruc:
       
         cmap1 = truncate_colormap(plt.cm.plasma, 0.1, 1)
         cmap2 = truncate_colormap(plt.cm.viridis, 0.1, 0.9)
-        
-        #----------------------------------------------- Report --------------------------------------------
-        print("------------------------------------ Short Report---------------------------------------------------")
-        Gamma = '\u0393'
-        eta = '\u03B7'
-        print(f"{Gamma} factor = {self.gamma}")
-        print(f"{eta}_B = {self.eta_b}")
-        print(f"{eta}_e = {self.eta_e}")
-        print(f"Shell Radius",self.sizer*u.cm)
-        print("---------------------------------------------------------------------------------------------------")
+
+
 
         #----------------------------------------------- Plot ----------------------------------------------
         plt.figure(figsize=(12,8))
+        plt.tick_params(axis='both', which='major', labelsize=15)     
+        plt.tick_params(axis='both', which='minor', labelsize=12)     
+        
         plt.rc('font', family='sans')
         plt.rc('mathtext', fontset='custom')
         
@@ -1076,104 +1093,292 @@ class GRBModel_topstruc:
         plt.legend(loc='lower left')
 
 
-        plt.title(f"SSC test",fontsize=15)
+        plt.title(f"{Name}",fontsize=15)
         plt.grid(True, which="both", linestyle="--", alpha=0.6)
 
-        if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{path}SED_{Name}.jpg", format="jpg", dpi=300)
-        
-            print(f"Plot saved as: {path}SED_{Name}.png/pdf")
+        if Save and Path is not None:
+          filename=Name+".jpg"
+          file_path = os.path.join(Path, filename)
+          plt.savefig(file_path, format="jpg", dpi=300)
+          log.info(f"Plot saved as: {Path}/{Name}.jpg")
 
         plt.show
         #---------------------------------------------------------------------------------------------------- 
-      
-    def plot_jet_profile(self,bottom_order=3,Save=False,Name="Jet_profile",path="./"):
+
+    def plot_sed3D(self, emin, emax,
+                  order_bottom=6,elev=20,azim=-60,
+                  plot_true_spectrum=True,
+                  plot_shells=False,
+                  Save=False, Path=None, Name=None):
+
+        log.info("Plotting SED...")
+
+        # -------------------------------------------------------------------
+        # ENERGIA (base 10 logspace)
+        # -------------------------------------------------------------------
+        bins = int(np.log10(emax/emin) * 20.)
+        newene = np.logspace(np.log10(emin), np.log10(emax), bins)  # float puro
+        newene_tab = Table([newene * u.eV], names=['energy'])
+
+        thetas = self.theta_shells.value
+        n_shells = self.shells
+
+        # -------------------------------------------------------------------
+        # COLORI
+        # -------------------------------------------------------------------
+        def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+            new_cmap = LinearSegmentedColormap.from_list(
+                f'trunc({cmap.name},{minval:.2f},{maxval:.2f})',
+                cmap(np.linspace(minval, maxval, n)))
+            return new_cmap
+
+        cmap1 = truncate_colormap(plt.cm.plasma, 0.1, 1)
+        cmap2 = truncate_colormap(plt.cm.viridis, 0.1, 0.9)
+
+        # -------------------------------------------------------------------
+        # FIGURA 3D
+        # -------------------------------------------------------------------
+        fig = plt.figure(figsize=(13, 10))
+        ax = fig.add_subplot(projection='3d')
+
+        ax.tick_params(axis='x', which='major', labelsize=15)
+        ax.tick_params(axis='y', which='major', labelsize=15)
+        ax.tick_params(axis='z', which='major', labelsize=15)
+
+        plt.rc('font', family='DejaVu Sans')
+        plt.rc('mathtext', fontset='custom')
+
+        # -------------------------------------------------------------------
+        # SPECTRUM
+        # -------------------------------------------------------------------
+        #all_flux_values = []
         
-        theta = np.linspace(0, 30, 500)
-        plt.figure(figsize=(8,5))
-        if self.energy_profile=='gaussian':
-              E = self.E_theta_gaussian(theta, thetaw_deg=12)
-              plt.plot(theta, E, label=r"Gaussiano troncato °" )
-        elif self.energy_profile == 'powerlaw':
-              E = self.E_theta_powerlaw(theta,thetaw_deg=20,b=4.5)
-              plt.plot(theta, E, label=fr"Power-law, $b$ = {4.5}")
+        if plot_true_spectrum:
+
+            total_synch_True = np.sum(self.synch_comp, axis=0)
+            total_ic_True    = np.sum(self.ic_comp, axis=0)
+            SSC= total_synch_True + total_ic_True
+
+            #all_flux_values.append( SSC_True.value )
+
+        
         else:
-                raise ValueError(f"Unknown energy profile: {self.energy_profile}")   
+            total_synch = np.sum(self.synch_comp_approx, axis=0)
+            total_ic  = np.sum(self.ic_comp_approx, axis=0)
+            SSC = total_synch+ total_ic
+
+            #all_flux_values.append( SSC_approx.value )
+
+              
+        #flux = np.clip(np.concatenate(all_flux_values), 1e-20, np.inf)
         
-        Emax = np.max(E)
-        ymax = 10**np.ceil(np.log10(Emax))
-        ymin = ymax / (10**bottom_order)
+        flux = np.clip(SSC.value, 1e-20, np.inf)
         
-        plt.xlabel("θ (gradi)")
-        plt.ylabel(r"$E_{\mathrm{iso}}(\theta)$ [erg]")
-        plt.title("Profilo angolare dell'energia isotropica")
-        plt.yscale("log")
-        plt.ylim(ymin, ymax)
-        plt.legend()
-        plt.grid(True)
+        #  limits
+        log_max =np.log10(flux.max())
+        ordine = int(np.ceil(log_max))
+        ymax = 10**(ordine+1)
+        ymin = 10**(ordine - order_bottom)
+
+        # 
+        theta_total = min(thetas) - 2
+        y_total = np.full_like(newene, theta_total)
+
+        logz = np.log10(flux)
+        #logz = np.maximum(logz, np.log10(ymin))
+
+        verts_top = list(zip(np.log10(newene), y_total, logz))
+
+        verts_bottom = list(zip(np.log10(newene[::-1]),y_total[::-1],np.full_like(newene, np.log10(ymin))))
+
+        poly_total = Poly3DCollection([verts_top + verts_bottom],
+                                      facecolor='gray',
+                                      alpha=0.6,
+                                      edgecolor='black')  # bordo per evidenziare
+        ax.add_collection3d(poly_total)
+
+        # -------------------------------------------------------------------
+        # SHELLS
+        # -------------------------------------------------------------------
+
+        if plot_shells:
+            n_shells = self.shells
+
+            if plot_true_spectrum:
+              for i in range(n_shells):
+                  shell_flux = (self.synch_comp[i,:] + self.ic_comp[i,:]).value
+                  
+            else:
+              for i in range(n_shells):
+                  shell_flux = (self.synch_comp_approx[i,:] + self.ic_comp_approx[i,:]).value
+                  
+
+        if plot_shells:
+
+            for i in range(n_shells):
+
+                theta = thetas[i]
+                y = np.full_like(newene, theta)
+              
+                if plot_true_spectrum:
+                  
+                  cmap=cmap2
+                  shell_flux = (self.synch_comp[i] + self.ic_comp[i]).value
+                else:
+                  cmap=cmap1
+                  shell_flux = (self.synch_comp_approx[i] + self.ic_comp_approx[i]).value
+                
+                
+                shell_flux = np.clip(shell_flux, 1e-20, np.inf)   # evita log(0)
+
+                logz = np.log10(shell_flux)
+                logz = np.maximum(logz, np.log10(ymin))
+
+                verts_top = list(zip(np.log10(newene), y, logz))
+
+                verts_bottom = list(zip(np.log10(newene[::-1]),
+                                        y[::-1],
+                                        np.full_like(newene, np.log10(ymin))))
+
+                poly = Poly3DCollection([verts_top + verts_bottom],
+                                        facecolor=cmap(i / n_shells),
+                                        edgecolor="black",
+                                        linewidth=0.9,
+                                        alpha=0.65)
+
+                ax.add_collection3d(poly)
+
+      
+                legend_elements = [
+                    Patch(facecolor=cmap(i / n_shells),
+                          edgecolor='black',
+                          label=f"{thetas[i]:.1f}°")
+                    for i in range(n_shells)
+                ]
+
+                ax.legend(handles=legend_elements, title="Angle θ", loc="upper left")
+
+        # -------------------------------------------------------------------
+        # ASSI
+        # -------------------------------------------------------------------
+        sed_unit = (u.erg / (u.cm**2 * u.s * u.eV))
+
+        ax.set_xlabel('Log(Photon energy [{0}])'.format(newene_tab['energy'].unit.to_string('latex_inline')),fontsize=15,labelpad=15)
+        ax.set_ylabel(r'$\theta$ (deg)',fontsize=15,labelpad=15)
+        ax.set_zlabel(r'Log($E^2 dN/dE$ [{0}])'.format(sed_unit.to_string('latex_inline')),fontsize=15,labelpad=15)
+
+        ax.set_xlim(np.log10(emin), np.log10(emax))
+        ax.set_ylim(max(thetas),min(thetas)-4)
+        ax.set_zlim(np.log10(ymin), np.log10(ymax))
+        ax.view_init(elev=elev, azim=azim)
+
+        plt.title(f"{Name}", fontsize=15)
         plt.tight_layout()
 
-        if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{path}SED_{Name}.jpg", format="jpg", dpi=300)
-        
-            print(f"Plot saved as: {path}SED_{Name}.png/pdf")
-        
+        if Save and Path is not None:
+          filename=Name+".jpg"
+          file_path = os.path.join(Path, filename)
+          plt.savefig(file_path, format="jpg", dpi=300)
+          log.info(f"Plot saved as: {Path}/{Name}.jpg")
         plt.show()
-          
-        
-    def print_GRB_status(self):
-        
-        print("")
-        print("###############################   Structured GRB status - START  #########################################")
-        print("")
-        print(f"Isotropic Energy(0)-on axis: {self.Eiso_zero} erg")
-        print(f"Ambient density around the burst units of cm-3: {self.density}")
-        print(f"Average evaluation time: {self.avtime} s")
-        print(f"Redshift: {self.redshift}")
-        print(f"Luminosity Distance: {self.Dl}")
-        print(f"Scenario: {self.scenario}")
-        print(f"Magnetic field B: {self.B}")
-        print(f"eta e: {self.eta_e}")
-        print(f"eta B: {self.eta_b}")
-        print(f"---------------------------------------------------------------------------------------")
-        print(f"Energy profile: {self.energy_profile}")
-        print(f"Number of concentric shells: {self.shells}")
-        print(f"Gamma factor (Boosting): {self.gamma}")
-        #radius=self.sizer*u.cm
-        #deltaR=self.shell_dept*u.cm
-        #volume=self.volume*u.cm**3
-        """for r in radius:
-          print(f"Radius of the shell: {r.to(u.pc):.3e} or {r.to(u.km):.3e}")
-        for d in deltaR:
-          print(f"Dept of the shell: {d.to(u.pc):.3e} or {d.to(u.km):.3e}")
-        for v in volume:
-          print(f"Volume of the shell: {v.to(u.pc**3):.3e} or {v.to(u.km**3):.3e}")"""
-        print(f"Shock energy omega: {self.shock_energy}")
-        print(f"Theta core: {self.thetacore}")
-        print(f"Theta limits: {self.theta_limits}")
-        print(f"Theta shells: {self.theta_shells}")
-        print(f"Average Energies array: {self.Eavg_array}")
-        print(f"Minimum injection energy for the particle distribution: {self.Emin}")
-        print(f"Total energy in the electrons: {self.Wesyn}")
-        print("")
-        print("###############################   Structured GRB status - END   #########################################")
-        print("")
 
+        #-----------
+
+    def plot_jet_profile(self,Save=False,Path=None,Name=None):
+        
+        theta_min, theta_max = 0.0, self.thetaend.value
+        theta_cont=np.linspace(theta_min,theta_max,100)*u.deg
+
+        theta_limits = self.theta_limits
+        theta_shells = self.theta_shells
+
+        Gamma_array, R_array, Energy_array = self.compute_dynamics(self.avtime, theta_cont)
+
+        Gamma, R, Energy = self.compute_dynamics(self.avtime, theta_shells)
+
+
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex=True)
+
+        ax_g, ax_e, ax_r = axes
+
+        # ============================================================
+        # 1) GAMMA(theta)
+        # ============================================================
+        ax_g.plot(theta_cont, Gamma_array, lw=2, label=r"$\Gamma(\theta)$")
+        
+        Gamma_step = np.append(Gamma, Gamma[-1])
+        ax_g.step(theta_limits,Gamma_step, where="post",lw=2,label=r"$\Gamma$ shell")
+     
+
+        for th in theta_limits:
+            ax_g.axvline(th.to_value(u.deg), color="gray", alpha=0.3, ls="--")
+
+        ax_g.set_xlabel(r"$\theta$ [deg]")
+        ax_g.set_ylabel(r"$\Gamma$")
+        ax_g.set_title("Lorentz factor")
+        ax_g.legend()
+
+
+        # ============================================================
+        # 2) ENERGIA(theta)
+        # ============================================================
+        ax_e.plot(theta_cont, Energy_array, lw=2, label=r"$E(\theta)$ ")
+        Energy_step = np.append(Energy, Energy[-1])
+        ax_e.step(theta_limits,Energy_step, where="post",lw=2,label=r"$E$ shell")
+
+        for th in theta_limits:
+            ax_e.axvline(th.to_value(u.deg), color="gray", alpha=0.3, ls="--")
+
+        ax_e.set_xlabel(r"$\theta$ [deg]")
+        ax_e.set_ylabel(r"$E(\theta)$")
+        ax_e.set_title("Energy profile")
+        ax_e.legend()
+
+
+        # ============================================================
+        # 3) R(theta)
+        # ============================================================
+        ax_r.plot(theta_cont, R_array, lw=2, label=r"$R(\theta)$")
+        R_step      = np.append(R, R[-1])
+        ax_r.step(theta_limits,R_step,where="post",lw=2,label=r"$R$  shell")
+
+        for th in theta_limits:
+            ax_r.axvline(th.to_value(u.deg), color="gray", alpha=0.3, ls="--")
+
+        ax_r.set_xlabel(r"$\theta$ [deg]")
+        ax_r.set_ylabel(r"$R(\theta)$")
+        ax_r.set_title("Radius")
+        ax_r.legend()
+
+
+        # ============================================================
+        # Titolo globale + salvataggio
+        # ============================================================
+        if Name:
+            fig.suptitle(Name, fontsize=16)
+
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+
+        if Save and Path is not None:
+            filename = Name + ".jpg"
+            file_path = os.path.join(Path, filename)
+            fig.savefig(file_path, format="jpg", dpi=300)
+            log.info(f"Plot saved as: {file_path}")
+
+        plt.show()
 
     def plot_gamma_R_3D_range(self, t_min, t_max, theta_min, theta_max, n_t=100, n_theta=100,slice=False,elevation=30,azimut=45,
-                              Save=False,Name="Gamma_R_3D",path="./"):
+                              Save=False,Path=None,Name=None):
         """
         Plotta due superfici 3D:
         - Gamma(theta, time)
         - R(theta, time)
         """
-
+        log.info("plot_gamma_R_3D_range ...")
         time_array = np.logspace(np.log10(t_min), np.log10(t_max), n_t)
         T_log = np.log10(time_array)
 
-        theta_array = np.linspace(theta_min, theta_max, n_theta)
+        theta_array = np.linspace(theta_min, theta_max, n_theta)*u.deg
 
         # build the grid
         T, Theta = np.meshgrid(T_log, theta_array, indexing='ij')
@@ -1188,8 +1393,8 @@ class GRBModel_topstruc:
 
         # ------------------------------- PLOT ------------------------------------------
         fig = plt.figure(figsize=(16, 8))
+
         fig.suptitle(f"Gamma and Radius vs Time: {self.energy_profile.capitalize()} profile",fontsize=16)
-        
         # Plot Gamma
         ax1 = fig.add_subplot(121, projection='3d')
         surf1 = ax1.plot_surface(T, Theta, Gamma_grid,alpha=0.7, cmap='viridis')
@@ -1211,28 +1416,28 @@ class GRBModel_topstruc:
         ax2.view_init(elev=elevation, azim=azimut)
         cbar2 = fig.colorbar(surf2, ax=ax2, shrink=0.8, aspect=20)
         cbar2.set_label('Radius', rotation=270, labelpad=15, fontsize=12)
-        
-        #----------------------------- Slice = True ---------------------------------------------
+
         if slice:
           
           theta_array=self.theta_shells
-          norm = Normalize(vmin=np.min(theta_array), vmax=np.max(theta_array))
+          theta_array_values=theta_array.to_value(u.deg)
+          norm = Normalize(vmin=np.min(theta_array_values), vmax=np.max(theta_array_values))
           colormap1 = cm.viridis  # puoi usare anche 'plasma', 'inferno', etc.
           colormap2 = cm.plasma
           
           for theta_val in theta_array:
             Gamma_vals, R_vals,E = self.compute_dynamics(avtime=time_array, theta=theta_val)
             
-            
-            color1 = colormap1(norm(theta_val))
-            color2 = colormap2(norm(theta_val))
-            
+            theta_val_deg = theta_val.to_value(u.deg)
+
+            color1 = colormap1(norm(theta_val_deg))
+            color2 = colormap2(norm(theta_val_deg))
             # Gamma curve
-            ax1.plot(np.log10(time_array),[theta_val]*len(time_array), Gamma_vals,
+            ax1.plot(np.log10(time_array),[theta_val_deg]*len(time_array), Gamma_vals,
                 color=color2, linestyle='-',linewidth=2.5,alpha=1.0, label=f'θ={theta_val:.0f}°')
 
             # R curve
-            ax2.plot(np.log10(time_array),[theta_val]*len(time_array),R_vals,
+            ax2.plot(np.log10(time_array),[theta_val_deg]*len(time_array),R_vals,
                 color=color1, linestyle='-', linewidth=2.5,alpha=1.0,label=f'θ={theta_val:.0f}°')
 
           ax1.legend(loc='best')
@@ -1240,16 +1445,16 @@ class GRBModel_topstruc:
 
           plt.subplots_adjust(wspace=0.4)
           plt.tight_layout()
-
-
-          if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{path}{Name}2.jpg", format="jpg", dpi=300)
         
-            print(f"Plot saved as: {path}{Name}2.png/pdf")
+        if Save and Path is not None:
+          filename=Name+"3D"+".jpg"
+          file_path = os.path.join(Path, filename)
+          plt.savefig(file_path, format="jpg", dpi=300)
+          log.info(f"Plot saved as: {Path}/{filename}")
+        
+        #----------------------------- Slice = True ---------------------------------------------
+        if slice:
 
-          plt.show()
-          
           fig_slice = plt.figure(figsize=(16, 8))
           fig_slice, (axg, axr) = plt.subplots(1, 2, figsize=(16, 7), sharex=True)
           #axg = fig.add_subplot(121)
@@ -1260,10 +1465,11 @@ class GRBModel_topstruc:
 
           for theta_val in theta_array:
               Gamma_vals, R_vals,E = self.compute_dynamics(avtime=time_array, theta=theta_val)
+              theta_val_deg = theta_val.to_value(u.deg)
 
               label = f'θ={theta_val:.0f}°'
-              color1 = colormap1(norm(theta_val))
-              color2 = colormap2(norm(theta_val))
+              color1 = colormap1(norm(theta_val_deg))
+              color2 = colormap2(norm(theta_val_deg))
 
               axg.plot(time_array, Gamma_vals, label=label, linewidth=2.5,color=color2)
               axr.plot(time_array, R_vals, label=label, linewidth=2.5,color=color1)
@@ -1287,12 +1493,455 @@ class GRBModel_topstruc:
 
           plt.tight_layout()
 
-          if Save:
-            plt.title(f"{Name}",fontsize=15)
-            plt.savefig(f"{path}{Name}1.jpg", format="jpg", dpi=300)
+          if Save and Path is not None:
+           filename=Name+"2D"+"_.jpg"
+           file_path = os.path.join(Path, filename)
+           plt.savefig(file_path, format="jpg", dpi=300)
+           log.info(f"Plot saved as: {Path}/{filename}")
         
-            print(f"Plot saved as: {path}{Name}1.png/pdf")
+        #plt.show()
 
-          plt.show()
+    def plot_doppler_3D(self,plane=True,circle=True,surface=True,pixels=300,crop=False,Save=None,Path=None,Name="doppler 3D"):
+      
+      log.info("plot_doppler_3D ...")
+      theta_obs=self.theta_obs
+
+      if crop==True:
+       theta_vals = np.linspace((max(0,theta_obs.value-5)),theta_obs.value+5, pixels)*u.deg
+      else:
+       theta_vals = np.linspace((max(0,theta_obs.value-20)),theta_obs.value+20, pixels)*u.deg
+      
+      #log.info(f"Theta range:{np.min(theta_vals),np.max(theta_vals)}")
+
+      phi_vals   = np.linspace(-180, 180,pixels)*u.deg # φ da 0° a 360°
+      Theta, Phi = np.meshgrid(theta_vals, phi_vals, indexing="ij")
+
+      #Gamma, R, Energy=self.compute_dynamics(avtime=self.avtime, theta=Theta)
+      #doppler_gamma_theta= doppler_factor(Gamma,Theta, self.theta_obs, Phi)
+
+
+      ###################################################################################
+
+      theta_min=self.theta_limits[:-1]
+      #log.info(f"Theta min shells: {theta_min}")
+      theta_max=self.theta_limits[1:]
+      #log.info(f"Theta max shells:{theta_max}")
+      doppler_shells = np.zeros_like(Theta.value)
+
+      for i in range(self.shells): 
+          Gamma_i = self.gamma[i]
+
+          theta_inf=theta_min[i]
+          theta_sup=theta_max[i]
+          #theta_eff = self.theta_shells[i]
+          mask = (Theta.value >= theta_inf.value) & (Theta.value < theta_sup.value)
+
+          if np.any(mask):
+              doppler_shells[mask] = doppler_factor(Gamma_i, np.deg2rad(Theta[mask]), np.deg2rad(theta_obs), np.deg2rad(Phi[mask]))
+
+      ###################################################################################
+
+
+      if plane==True:
+        
+          #---------------------------------- PLOT 2D ----------------------------------------------
+          fig, ax = plt.subplots(1,1, figsize=(10,7), sharex=False, sharey=False)
+
+          #pcm1 = axes[0].pcolormesh(Phi, Theta, doppler_gamma_fix, shading='auto', cmap='viridis')
+          pcm1 = ax.pcolormesh(Phi, Theta, doppler_shells, shading='auto', cmap='viridis')
+          ax.set_title(f"Doppler Gamma(θ) with (θ_obs={theta_obs}°) and Time={self.avtime}s")
+          ax.set_xlabel(r"$\phi$ [deg]")
+          ax.set_ylabel(r"$\theta$ [deg]")
+
+          #axes[0].set_ylim(4,6)
+          #axes[0].set_xlim(-50,50)
+
+          ax.grid(True, which="both", linestyle="--", alpha=0.6)
+          ax.axhline(y=theta_obs.value, color="red", linestyle="--", lw=2, label=f'θ_obs = {theta_obs}°')
+          ax.legend(loc="upper right")
+          fig.colorbar(pcm1, ax=ax,label=r"$\delta(\theta,\phi)$")
+          #--------------------------------------------------------------------------------------------------------
+
+          """pcm2 = axes[1].pcolormesh(Phi, Theta, doppler_gamma_theta, shading='auto', cmap='plasma')
+          axes[1].set_title(f"Doppler Gamma(θ) with (θ_obs={theta_obs}°) and Time={self.avtime}s")
+          axes[1].set_xlabel(r"$\phi$ [deg]")
+          axes[1].set_ylabel(r"$\theta$ [deg]")
+          #axes[1].set_ylim(2,8)
+          #axes[1].set_xlim(-50,50)
+
+          axes[1].grid(True, which="both", linestyle="--", alpha=0.6)
+          axes[1].axhline(y=theta_obs.value, color="red", linestyle="--", lw=2, label=f'θ_obs = {theta_obs}°')
+          axes[1].legend(loc="upper right")
+          fig.colorbar(pcm2, ax=axes[1],label=r"$\delta(\theta,\phi)$")"""
+
+          plt.tight_layout()
+
+          if Save and Path is not None:
+            filename=Name+"_plane.jpg"
+            file_path = os.path.join(Path, filename)
+            plt.savefig(file_path, format="jpg", dpi=300)
+            log.info(f"Plot saved as: {Path}/{filename}")
+          
+
+      if circle==True:
+        Phi_rad = np.radians(Phi)
+
+        # --- Figure con due pannelli polari ---
+        fig, ax = plt.subplots(1, 1, subplot_kw={'projection':'polar'}, figsize=(10,7))
+
+        # Primo plot: Gamma fisso
+        pcm1 = ax.pcolormesh(Phi_rad, Theta,  doppler_shells, shading='auto', cmap='viridis')
+
+        ax.set_title(f"Doppler Gamma(θ) with ( θ_obs={theta_obs}°) and Time={self.avtime}s", va='bottom')
+        #axes[0].set_ylim(4, 6)  
+        ax.grid(True, which="both", linestyle="--", alpha=0.6)
+
+        ax.plot(np.linspace(0, 2*np.pi, 200),np.full(200, theta_obs), 'r:', lw=2, label=f'θ_obs = {theta_obs}°')
+        ax.legend(loc="upper right")
+        ax.set_rlabel_position(+20)
+
+        #axes[0].set_rticks([0, 10, 20,30,40,50,60,70,80,90])  # solo queste tacche radiali
+        #axes[0].tick_params(axis='y', colors='white', labelsize=12, labelrotation=0)
+
+        fig.colorbar(pcm1, ax=ax, pad=0.1, label=r"$\delta(\theta,\phi)$")
+
+        # Secondo plot: Gamma(theta)
+        """pcm2 = axes[1].pcolormesh(Phi_rad, Theta, doppler_gamma_theta, shading='auto', cmap='plasma')
+        axes[1].set_title(f"Doppler Gamma(θ) with ( θ_obs={theta_obs}°) and Time={self.avtime}s", va='bottom')
+        #axes[1].set_ylim(2, 8) 
+        axes[1].grid(True, which="both", linestyle="--", alpha=0.6)
+
+        axes[1].plot(np.linspace(0, 2*np.pi, 200),np.full(200, theta_obs), 'r:', lw=2, label=f'θ_obs = {theta_obs}°')
+        axes[1].legend(loc="upper right")
+        fig.colorbar(pcm2, ax=axes[1], pad=0.1, label=r"$\delta(\theta,\phi)$")"""
+        plt.tight_layout()
+
+        if Save and Path is not None:
+            filename=Name+"_circle.jpg"
+            file_path = os.path.join(Path, filename)
+            plt.savefig(file_path, format="jpg", dpi=300)
+            log.info(f"Plot saved as: {Path}/S{filename}")
+  
+
+      if surface==True:
+          # Figure con due subplot 3D
+        fig = plt.figure(figsize=(18,7))
+
+        # --- Primo subplot: Gamma fix ---
+        ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+
+        surf1 = ax1.plot_surface(Phi, Theta[::-1], doppler_shells,cmap='viridis', edgecolor='none')
+        ax1.set_title(f"Doppler Gamma(θ) with ( θ_obs={theta_obs}°) and Time={self.avtime}s")
+
+        ax1.set_xlabel(r"$\phi$ [deg]")
+        ax1.set_ylabel(r"$\theta$ [deg]")
+        ax1.set_zlabel(r"$\delta(\theta,\phi)$")
+        #ax1.set_xlim(0, 360)
+        #ax1.set_ylim(8, 12)
+        fig.colorbar(surf1, ax=ax1, shrink=0.6, label=r"$\delta$")
+
+        # --- Secondo subplot: Gamma(theta) ---
+        """ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+        surf2 = ax2.plot_surface(Phi, Theta[::-1], doppler_gamma_theta,cmap='plasma', edgecolor='none')
+
+        ax2.set_title(f"Doppler Gamma(θ) with ( θ_obs={theta_obs}°) and Time={self.avtime}s")
+        ax2.set_xlabel(r"$\phi$ [deg]")
+        ax2.set_ylabel(r"$\theta$ [deg]")
+        ax2.set_zlabel(r"$\delta(\theta,\phi)$")
+        #ax2.set_xlim(0, 360)
+        #ax2.set_ylim(3, 10)
+        fig.colorbar(surf2, ax=ax2, shrink=0.6, label=r"$\delta$")"""
+
+        plt.tight_layout()
+        if Save and Path is not None:
+          filename=Name+"_surface.jpg"
+          file_path = os.path.join(Path, filename)
+          plt.savefig(file_path, format="jpg", dpi=300)
+          log.info(f"Plot saved as: {Path}/{filename}")
+
+      
+      else:
+          raise ValueError("At least one of 'plane', 'circle', or 'surface' must be True.")
+
+    def plot_Gamma_3D(self,pixels=300,time=200,crop=False,Save=False,Path=None,Name="Gamma_3D"):
+      
+      log.info("plot_Gamma_3D ...")
+      theta_obs=self.theta_obs
+
+      theta_vals = np.linspace(0,90, pixels)*u.deg
+      if crop==True:
+          theta_vals = np.linspace(0,self.thetaend.value+5, pixels)*u.deg
+
+      phi_vals   = np.linspace(-180, 180,pixels)*u.deg # φ da 0° a 360°
+      Theta, Phi = np.meshgrid(theta_vals, phi_vals, indexing="ij")
+
+
+      Gamma,  R,  Energy=self.compute_dynamics(avtime=self.avtime, theta=Theta)
+      Gammat, Rt, Energyt=self.compute_dynamics(avtime=time, theta=Theta)
+      
+      log.info(f"Gamma at avtime {self.avtime}: min {np.min(Gamma)},Gamma max {np.max(Gamma)}")
+      log.info(f"Gamma at time {time}: min {np.min(Gammat)},Gamma max {np.max(Gammat)}")
+
+      theta_min=self.theta_limits[:-1]
+      theta_max=self.theta_limits[1:]
+      Gamma_shells = np.zeros_like(Theta.value)
+
+      for i in range(self.shells): 
+          Gamma_i = self.gamma[i]
+
+          theta_inf=theta_min[i]
+          theta_sup=theta_max[i]
+          mask = (Theta >= theta_inf) & (Theta < theta_sup)
+          Gamma_shells[mask] = Gamma_i
+
+
+      ################################################################################################
+
+      Phi_rad = np.radians(Phi)
+
+      # --- Figure con due pannelli polari ---
+      fig, axes = plt.subplots(1, 2, subplot_kw={'projection':'polar'}, figsize=(14,7))
+
+      # Primo plot: Gamma fisso
+      pcm1 = axes[0].pcolormesh(Phi_rad, Theta, Gamma_shells, shading='auto', cmap='viridis')
+
+      axes[0].set_title(f"Gamma (θ) with (θ_obs={theta_obs}°) and Time={self.avtime}s", va='bottom')
+      #axes[0].set_ylim(4, 6)  
+      axes[0].grid(True, which="both", linestyle="--", alpha=0.6)
+
+      axes[0].plot(np.linspace(0, 2*np.pi, 200),np.full(200, theta_obs), 'r:', lw=2, label=f'θ_obs = {theta_obs}°')
+      axes[0].legend(loc="upper right")
+      axes[0].set_rlabel_position(+20)
+
+      #axes[0].set_rticks([0, 10, 20,30,40,50,60,70,80,90])  # solo queste tacche radiali
+      #axes[0].tick_params(axis='y', colors='white', labelsize=12, labelrotation=0)
+
+      fig.colorbar(pcm1, ax=axes[0], pad=0.1, label=r"$\Gamma(\theta,\phi)$")
+
+      # Secondo plot: Gamma(theta)
+      pcm2 = axes[1].pcolormesh(Phi_rad, Theta, Gammat, shading='auto', cmap='plasma')
+      axes[1].set_title(f"Gamma(θ) with ( θ_obs={theta_obs}°) and Time={time}s", va='bottom')
+      #axes[1].set_ylim(2, 8) 
+      axes[1].grid(True, which="both", linestyle="--", alpha=0.6)
+
+      axes[1].plot(np.linspace(0, 2*np.pi, 200),np.full(200, theta_obs), 'r:', lw=2, label=f'θ_obs = {theta_obs}°')
+      axes[1].legend(loc="upper right")
+      fig.colorbar(pcm2, ax=axes[1], pad=0.1, label=r"$\delta(\theta,\phi)$")
+
+      plt.tight_layout()
+
+      if Name:
+        plt.title(f"{Name}",fontsize=15)
+
+      if Save and Path is not None:
+        filename=Name+".jpg"
+        file_path = os.path.join(Path, filename)
+        plt.savefig(file_path, format="jpg", dpi=300)
+        log.info(f"Plot saved as: {Path}/{Name}.jpg")
+
+
+      #################################################################################################
+
+    def animate_Gamma(self, tmin=10, tmax=1000, pixels=200, crop=False,
+                      cmap='plasma', Save=False,Path=None,Name="Gamma_animation"):
+        
+        log.info("animate_Gamma ...")
+
+        theta_obs = self.theta_obs
+        theta_vals = np.linspace(0, 90, pixels) * u.deg
+        if crop:
+            theta_vals = np.linspace(0, self.thetaend.value + 5, pixels) * u.deg
+
+        phi_vals = np.linspace(-180, 180, pixels) * u.deg
+        Theta, Phi = np.meshgrid(theta_vals, phi_vals, indexing="ij")
+        Phi_rad = np.radians(Phi)
+
+        # --- Array dei tempi ---
+        times = np.logspace(np.log10(tmin), np.log10(tmax), 100)
+
+        # --- Precalcola Gamma per tutti i tempi per avere vmin/vmax fissi ---
+        Gamma_all = []
+        for t in times:
+            Gamma_t, _, _ = self.compute_dynamics(avtime=t, theta=Theta)
+            Gamma_all.append(Gamma_t)
+        Gamma_all = np.array(Gamma_all)
+
+        vmin, vmax = np.min(Gamma_all), np.max(Gamma_all)
+
+        # --- Crea figura polare ---
+        fig, ax = plt.subplots(1, subplot_kw={'projection': 'polar'}, figsize=(8,8),dpi=100)
+
+        # Primo frame
+        pcm = ax.pcolormesh(Phi_rad, Theta, Gamma_all[0], shading='auto', cmap=cmap, vmin=vmin, vmax=vmax)
+        cbar = fig.colorbar(pcm, ax=ax, pad=0.1, label=r"$\Gamma(\theta,\phi)$")
+
+        ax.set_title(f"Γ(θ, φ) — t = {times[0]:.2e} s")
+        ax.grid(True, linestyle="--", alpha=0.5)
+        ax.plot(np.linspace(0, 2*np.pi, 200), np.full(200, theta_obs), 'r:', lw=2, label=f'θ_obs = {theta_obs}°')
+        ax.legend(loc="upper right")
+
+        # --- Funzione update ---
+        def update(frame):
+            Gamma_t = Gamma_all[frame]
+            pcm.set_array(Gamma_t.ravel())
+            ax.set_title(f"Γ(θ, φ) — t = {times[frame]:.2e} s")
+            return [pcm]
+
+        # --- Crea animazione ---
+        anim = FuncAnimation(fig, update, frames=len(times), interval=150, blit=False, repeat=False)
+
+        if Save and Path is not None:
+          filename = Name + ".gif"
+          file_path = os.path.join(Path, filename)
+          writer = PillowWriter(fps=20)
+          anim.save(file_path, writer=writer)
+          log.info(f"GIF salvata in: {file_path}")
+
+        plt.close(fig)
+
+    def animate_doppler(self, tmin=10, tmax=1000, nframes=60,
+                        pixels=300, crop=False, cmap='viridis',
+                        Save=True,Path=None, Name='doppler_evolution.gif',
+                        ):
+        """
+        Anima l'evoluzione del fattore di Doppler nel piano (θ, φ)
+        """
+        log.info("animate_doppler ...")
+        # --- setup tempi ---
+        times = np.logspace(np.log10(tmin), np.log10(tmax), nframes)
+
+        # --- coordinate ---
+        theta_obs = self.theta_obs
+        if crop:
+            theta_vals = np.linspace(max(0, theta_obs.value-5), theta_obs.value+5, pixels) * u.deg
+        else:
+            theta_vals = np.linspace(max(0, theta_obs.value-20), theta_obs.value+20, pixels) * u.deg
+
+        phi_vals = np.linspace(-180, 180, pixels) * u.deg
+        Theta, Phi = np.meshgrid(theta_vals, phi_vals, indexing="ij")
+
+        Gamma0, _, _ = self.compute_dynamics(avtime=tmin, theta=Theta)
+        doppler0 = doppler_factor(Gamma0, Theta, theta_obs, Phi)
+        vmin, vmax = np.nanmin(doppler0), np.nanmax(doppler0)
+               
+        # --- figura ---
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=150,subplot_kw={'projection':'polar'})
+        pcm = ax.pcolormesh(np.radians(Phi), Theta, np.zeros_like(Theta.value), shading='auto',cmap=cmap, vmin=vmin, vmax=vmax)
+        fig.colorbar(pcm, ax=ax, label=r"$\delta(\theta,\phi)$")
+
+        ax.set_xlabel(r"$\phi$ [deg]")
+        ax.set_ylabel(r"$\theta$ [deg]")
+        ax.grid(True, which="both", linestyle="--", alpha=0.6)
+        ax.axhline(y=theta_obs.value, color="red", linestyle="--", lw=2, label=f"θ_obs = {theta_obs}°")
+        ax.legend(loc="upper right")
+
+        # --- funzione di aggiornamento ---
+        def update(frame):
+            t = times[frame]
+            Gamma, _, _ = self.compute_dynamics(avtime=t, theta=Theta)
+            doppler = doppler_factor(Gamma, Theta, theta_obs, Phi)
+            pcm.set_array(doppler.ravel())
+            #ax.set_title(f"Doppler evolution (θ_obs={theta_obs}°) — t = {t:.1f} s")
+            return [pcm]
+
+        # --- animazione ---
+        anim = FuncAnimation(fig, update, frames=nframes, interval=150, blit=False, repeat=False)
+
+        if Save and Path is not None:
+            filename = Name + ".gif"
+            file_path = os.path.join(Path, filename)
+            writer = PillowWriter(fps=20)
+            anim.save(file_path, writer=writer)
+            log.info(f"GIF salvata in: {file_path}")
+
+        plt.close(fig)
+
+    def plot_doppler_segmentation(self,phi_fixed,theta_max_deg, plot_Dphi=False,plot_Dmedio=False,Save=False,Path=None,Name=None):
+        
+        log.info("plot_doppler_segmentation ...")
+        
+        theta_edges=self.theta_limits
+        theta_edges_values=theta_edges.value
+        
+        log.info(f"Theta edges:{theta_edges}")
+
+        D_phi=[]
+        D_medio=[]
+
+        for i in range(len(theta_edges)-1):
+
+          theta_inf=theta_edges[i]
+          theta_sup=theta_edges[i+1]
+          theta_array=np.linspace(theta_inf,theta_sup,10)
+
+          Gamma_array, R, Energy = self.compute_dynamics(self.avtime, theta_array)
+          Gamma_inf, R, Energy = self.compute_dynamics(self.avtime, theta_inf)
+          Gamma_sup, R, Energy = self.compute_dynamics(self.avtime, theta_sup)
+
+          ##################################################################################################
+
+          D_inf_phi_fix = doppler_factor(Gamma_inf, np.deg2rad(theta_inf), np.deg2rad(self.theta_obs), np.deg2rad(phi_fixed))
+          D_sup_phi_fix = doppler_factor(Gamma_sup, np.deg2rad(theta_sup), np.deg2rad(self.theta_obs), np.deg2rad(phi_fixed))
+          
+          D_mean_fix = 0.5 * (D_inf_phi_fix.value + D_sup_phi_fix.value)
+          D_phi.append(float(D_mean_fix))
+          ##################################################################################################
+
+          theta_rad = np.deg2rad(theta_array)        
+
+          D_values = doppler_factor(Gamma_array, theta_rad, np.deg2rad(self.theta_obs), np.deg2rad(phi_fixed))
+
+          D_max = np.nanmax(D_values)
+          D_min = np.nanmin(D_values)
+          half_range = 0.5 * (D_max + D_min)
+          
+          D_medio.append(half_range.value)
+
+        ####################################### PLOT ######################################################
+
+        N=200
+        theta_vals_deg = np.linspace(0, theta_max_deg, N)
+
+        Gamma_vals, R, Energy = self.compute_dynamics(self.avtime, theta_vals_deg)
+        D_vals = doppler_factor(Gamma_vals, np.deg2rad(theta_vals_deg), np.deg2rad(self.theta_obs), np.deg2rad(phi_fixed))
+        
+        log.info(f"D_phi: {D_phi}")
+        log.info(f"D_medio: {D_medio}")
+
+        plt.figure(figsize=(13,9))
+
+        # Linee verticali rosse per i bordi delle shell
+        for th in theta_edges_values:
+            plt.axvline(th, color='red', ls='--', lw=1.5)
+
+        edges_plot = np.append(theta_edges_values, theta_edges_values[-1] + (theta_edges_values[-1] -theta_edges_values[-2]))
+
+        widths = np.diff(theta_edges_values)
+        
+        if plot_Dphi:
+          plt.step(edges_plot[:-1], np.append(D_phi, D_phi[-1]), where='post', color='darkblue', lw=1.5)
+          plt.bar(theta_edges_values[:-1], D_phi, width=widths, align='edge', color='darkblue', label='phi fixed sup-inf',alpha=0.3)
+        
+        if plot_Dmedio:
+          plt.step(edges_plot[:-1], np.append(D_medio, D_medio[-1]), where='post', color='darkgreen', lw=1.5)
+          plt.bar(theta_edges_values[:-1], D_medio, width=widths, align='edge', color='darkgreen',label='phi fixed max-min', alpha=0.3)
+
+        plt.plot(theta_vals_deg, D_vals, label=r"$\delta(\theta, \phi=0)$", lw=2, color="black")
+
+        plt.legend()
+        plt.xlabel(r'$\theta$ [deg]', fontsize=12)
+        plt.ylabel('Valore', fontsize=12)
+        plt.grid(True)
+
+        if Name:
+          plt.title(f"{Name}",fontsize=15)
+
+        if Save and Path is not None:
+          filename=Name+".jpg"
+          file_path = os.path.join(Path, filename)
+          plt.savefig(file_path, format="jpg", dpi=300)
+          log.info(f"Plot saved as: {Path}/{Name}.jpg")
+
+        #plt.show()
 
 

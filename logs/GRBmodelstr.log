@@ -1,0 +1,407 @@
+2026-01-20 15:18:29 | INFO | GRBmodelstr | Logger inizializzato. File: logs/GRBmodelstr.log
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #                                 STRUCTURED GRB initialization: START                                  #
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | --- SHELL SETUP: START ---
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | Selected profile:gaussian
+2026-01-20 15:18:31 | INFO | GRBmodelstr | Shell       θ_min [deg]     θ_max [deg]     θ_mid [deg]            E(θ)            Γ(θ) 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 1                0.000           0.400            0.200 deg       2.229e+54         136.495
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 2                0.400           0.700            0.550 deg       2.217e+54         136.405
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 3                0.700           1.000            0.850 deg       2.199e+54         136.262
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 4                1.000           1.400            1.200 deg       2.167e+54         136.018
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 5                1.400           1.900            1.650 deg       2.112e+54         135.582
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 6                1.900           2.500            2.200 deg       2.025e+54         134.866
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 7                2.500           3.300            2.900 deg       1.885e+54         133.668
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 8                3.300           4.400            3.850 deg       1.658e+54         131.542
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 9                4.400           5.800            5.100 deg       1.326e+54         127.914
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 10               5.800           7.800            6.800 deg       8.847e+53         121.606
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 11               7.800          10.900            9.350 deg       3.882e+53         109.709
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 12              10.900          12.000           11.450 deg       1.621e+53          98.359
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | --- SHELL SETUP: END ---
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #                                  STRUCTURED GRB initialization: END                                   #
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #                                   STRUCTURED GRB computation: START                                   #
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | #        Shell number:1 over 12        #
+2026-01-20 15:18:31 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | Gamma shell 1: 136.49
+2026-01-20 15:18:31 | INFO | GRBmodelstr | Energy in the shell1 (erg): 2.23e+54
+2026-01-20 15:18:31 | INFO | GRBmodelstr | 
+2026-01-20 15:18:31 | INFO | GRBmodelstr | SYN class norm1: 7.581710815429688e-05s
+2026-01-20 15:18:31 | INFO | GRBmodelstr | SYN class norm: 8.7738037109375e-05s
+2026-01-20 15:18:32 | INFO | GRBmodelstr | IC class: 0.00010085105895996094s
+2026-01-20 15:18:32 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:32 | INFO | GRBmodelstr | SYN SED approx time shell 1: 0.004 s
+2026-01-20 15:18:33 | INFO | GRBmodelstr | IC SED approx time shell 1: 1.598 s
+2026-01-20 15:18:33 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:33 | INFO | GRBmodelstr | 
+2026-01-20 15:18:33 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:33 | INFO | GRBmodelstr | 
+2026-01-20 15:18:33 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:33 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.019 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Time for IC.sed in shell : 10.710 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.005533 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000013 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:44 | INFO | GRBmodelstr | #        Shell number:2 over 12        #
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Gamma shell 2: 136.41
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Energy in the shell2 (erg): 2.22e+54
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | SYN class norm1: 9.1552734375e-05s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | SYN class norm: 7.557868957519531e-05s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | IC class: 0.00012350082397460938s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:44 | INFO | GRBmodelstr | SYN SED approx time shell 2: 0.005 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | IC SED approx time shell 2: 0.220 s
+2026-01-20 15:18:44 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:44 | INFO | GRBmodelstr | 
+2026-01-20 15:18:44 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:44 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.019 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.365 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000013 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:48 | INFO | GRBmodelstr | #        Shell number:3 over 12        #
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Gamma shell 3: 136.26
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Energy in the shell3 (erg): 2.20e+54
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | SYN class norm1: 6.818771362304688e-05s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | SYN class norm: 6.651878356933594e-05s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | IC class: 0.00010228157043457031s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:48 | INFO | GRBmodelstr | SYN SED approx time shell 3: 0.004 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | IC SED approx time shell 3: 0.177 s
+2026-01-20 15:18:48 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:48 | INFO | GRBmodelstr | 
+2026-01-20 15:18:48 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:48 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.015 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.290 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000014 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:51 | INFO | GRBmodelstr | #        Shell number:4 over 12        #
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Gamma shell 4: 136.02
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Energy in the shell4 (erg): 2.17e+54
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | SYN class norm1: 6.29425048828125e-05s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | SYN class norm: 6.437301635742188e-05s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | IC class: 0.0001049041748046875s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:51 | INFO | GRBmodelstr | SYN SED approx time shell 4: 0.004 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | IC SED approx time shell 4: 0.171 s
+2026-01-20 15:18:51 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:51 | INFO | GRBmodelstr | 
+2026-01-20 15:18:51 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:51 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.015 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.328 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000017 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:55 | INFO | GRBmodelstr | #        Shell number:5 over 12        #
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Gamma shell 5: 135.58
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Energy in the shell5 (erg): 2.11e+54
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | SYN class norm1: 5.745887756347656e-05s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | SYN class norm: 6.651878356933594e-05s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | IC class: 9.894371032714844e-05s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:55 | INFO | GRBmodelstr | SYN SED approx time shell 5: 0.004 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | IC SED approx time shell 5: 0.180 s
+2026-01-20 15:18:55 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:55 | INFO | GRBmodelstr | 
+2026-01-20 15:18:55 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:55 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.016 s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.382 s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:18:58 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000013 s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:58 | INFO | GRBmodelstr | #        Shell number:6 over 12        #
+2026-01-20 15:18:58 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | Gamma shell 6: 134.87
+2026-01-20 15:18:58 | INFO | GRBmodelstr | Energy in the shell6 (erg): 2.02e+54
+2026-01-20 15:18:58 | INFO | GRBmodelstr | 
+2026-01-20 15:18:58 | INFO | GRBmodelstr | SYN class norm1: 7.414817810058594e-05s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | SYN class norm: 7.367134094238281e-05s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | IC class: 9.441375732421875e-05s
+2026-01-20 15:18:58 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:58 | INFO | GRBmodelstr | SYN SED approx time shell 6: 0.004 s
+2026-01-20 15:18:59 | INFO | GRBmodelstr | IC SED approx time shell 6: 0.179 s
+2026-01-20 15:18:59 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:18:59 | INFO | GRBmodelstr | 
+2026-01-20 15:18:59 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:18:59 | INFO | GRBmodelstr | 
+2026-01-20 15:18:59 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:18:59 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.015 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.336 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000015 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000010 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:02 | INFO | GRBmodelstr | #        Shell number:7 over 12        #
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Gamma shell 7: 133.67
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Energy in the shell7 (erg): 1.89e+54
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | SYN class norm1: 6.532669067382812e-05s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | SYN class norm: 6.890296936035156e-05s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | IC class: 0.00013256072998046875s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:02 | INFO | GRBmodelstr | SYN SED approx time shell 7: 0.004 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | IC SED approx time shell 7: 0.186 s
+2026-01-20 15:19:02 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:02 | INFO | GRBmodelstr | 
+2026-01-20 15:19:02 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:02 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.015 s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.283 s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:05 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000014 s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:05 | INFO | GRBmodelstr | #        Shell number:8 over 12        #
+2026-01-20 15:19:05 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | Gamma shell 8: 131.54
+2026-01-20 15:19:05 | INFO | GRBmodelstr | Energy in the shell8 (erg): 1.66e+54
+2026-01-20 15:19:05 | INFO | GRBmodelstr | 
+2026-01-20 15:19:05 | INFO | GRBmodelstr | SYN class norm1: 6.222724914550781e-05s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | SYN class norm: 6.628036499023438e-05s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | IC class: 0.00011777877807617188s
+2026-01-20 15:19:05 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:05 | INFO | GRBmodelstr | SYN SED approx time shell 8: 0.004 s
+2026-01-20 15:19:06 | INFO | GRBmodelstr | IC SED approx time shell 8: 0.177 s
+2026-01-20 15:19:06 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:06 | INFO | GRBmodelstr | 
+2026-01-20 15:19:06 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:06 | INFO | GRBmodelstr | 
+2026-01-20 15:19:06 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:06 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.019 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.297 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000014 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:09 | INFO | GRBmodelstr | #        Shell number:9 over 12        #
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Gamma shell 9: 127.91
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Energy in the shell9 (erg): 1.33e+54
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | SYN class norm1: 6.222724914550781e-05s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | SYN class norm: 6.461143493652344e-05s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | IC class: 0.00012636184692382812s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:09 | INFO | GRBmodelstr | SYN SED approx time shell 9: 0.004 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | IC SED approx time shell 9: 0.181 s
+2026-01-20 15:19:09 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:09 | INFO | GRBmodelstr | 
+2026-01-20 15:19:09 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:09 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.016 s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.288 s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:12 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000019 s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000013 s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:12 | INFO | GRBmodelstr | #       Shell number:10 over 12        #
+2026-01-20 15:19:12 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | Gamma shell 10: 121.61
+2026-01-20 15:19:12 | INFO | GRBmodelstr | Energy in the shell10 (erg): 8.85e+53
+2026-01-20 15:19:12 | INFO | GRBmodelstr | 
+2026-01-20 15:19:12 | INFO | GRBmodelstr | SYN class norm1: 6.151199340820312e-05s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | SYN class norm: 6.604194641113281e-05s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | IC class: 9.822845458984375e-05s
+2026-01-20 15:19:12 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:12 | INFO | GRBmodelstr | SYN SED approx time shell 10: 0.004 s
+2026-01-20 15:19:13 | INFO | GRBmodelstr | IC SED approx time shell 10: 0.182 s
+2026-01-20 15:19:13 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:13 | INFO | GRBmodelstr | 
+2026-01-20 15:19:13 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:13 | INFO | GRBmodelstr | 
+2026-01-20 15:19:13 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:13 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.016 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.274 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000015 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:16 | INFO | GRBmodelstr | #       Shell number:11 over 12        #
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Gamma shell 11: 109.71
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Energy in the shell11 (erg): 3.88e+53
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | SYN class norm1: 6.175041198730469e-05s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | SYN class norm: 6.4849853515625e-05s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | IC class: 0.00011610984802246094s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:16 | INFO | GRBmodelstr | SYN SED approx time shell 11: 0.004 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | IC SED approx time shell 11: 0.185 s
+2026-01-20 15:19:16 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:16 | INFO | GRBmodelstr | 
+2026-01-20 15:19:16 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:16 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.019 s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.306 s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:19 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000014 s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000009 s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:19 | INFO | GRBmodelstr | #       Shell number:12 over 12        #
+2026-01-20 15:19:19 | INFO | GRBmodelstr | ########################################
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | Gamma shell 12: 98.36
+2026-01-20 15:19:19 | INFO | GRBmodelstr | Energy in the shell12 (erg): 1.62e+53
+2026-01-20 15:19:19 | INFO | GRBmodelstr | 
+2026-01-20 15:19:19 | INFO | GRBmodelstr | SYN class norm1: 6.103515625e-05s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | SYN class norm: 6.4849853515625e-05s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | IC class: 0.000102996826171875s
+2026-01-20 15:19:19 | INFO | GRBmodelstr | -------------------------------START : APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:19 | INFO | GRBmodelstr | SYN SED approx time shell 12: 0.003 s
+2026-01-20 15:19:20 | INFO | GRBmodelstr | IC SED approx time shell 12: 0.185 s
+2026-01-20 15:19:20 | INFO | GRBmodelstr | --------------------------------- END: APPROX SPECTRUM ---------------------------------
+2026-01-20 15:19:20 | INFO | GRBmodelstr | 
+2026-01-20 15:19:20 | INFO | GRBmodelstr | ################################# START: TRUE SPECTRUM #################################
+2026-01-20 15:19:20 | INFO | GRBmodelstr | 
+2026-01-20 15:19:20 | INFO | GRBmodelstr | D shape:(20,)
+2026-01-20 15:19:20 | INFO | GRBmodelstr | Time for SYN.sed in shell : 0.020 s
+2026-01-20 15:19:23 | INFO | GRBmodelstr | Time for IC.sed in shell : 3.349 s
+2026-01-20 15:19:23 | INFO | GRBmodelstr | 
+2026-01-20 15:19:23 | INFO | GRBmodelstr | ------------------------------ Integration phi START ------------------------------------
+2026-01-20 15:19:23 | INFO | GRBmodelstr | Time for integrate SYN on phi : 0.000014 s
+2026-01-20 15:19:23 | INFO | GRBmodelstr | Tempo impiegato per integrare ic shell con simpson uniform : 0.000008 s
+2026-01-20 15:19:23 | INFO | GRBmodelstr | ------------------------------ Integration phi END ----------------------------------
+2026-01-20 15:19:23 | INFO | GRBmodelstr | 
+2026-01-20 15:19:23 | INFO | GRBmodelstr | ############################## END: TRUE SPECTRUM ###################################
+2026-01-20 15:19:23 | INFO | GRBmodelstr | 
+2026-01-20 15:19:23 | INFO | GRBmodelstr | 
+2026-01-20 15:19:23 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:19:23 | INFO | GRBmodelstr | #                                    STRUCTURED GRB computation: END                                    #
+2026-01-20 15:19:23 | INFO | GRBmodelstr | #########################################################################################################
+2026-01-20 15:19:23 | INFO | GRBmodelstr | 
+2026-01-20 15:24:07 | INFO | GRBmodelstr | Plotting SED...
+2026-01-20 15:24:09 | INFO | GRBmodelstr | Plot saved as: plots_2026-01-20_15/SED.jpg
+2026-01-20 15:24:17 | INFO | GRBmodelstr | Plotting SED...
+2026-01-20 15:24:19 | INFO | GRBmodelstr | Plot saved as: plots_2026-01-20_15/SED.jpg
+2026-01-20 15:24:22 | INFO | GRBmodelstr | Plotting SED...
+2026-01-20 15:24:23 | INFO | GRBmodelstr | Plot saved as: plots_2026-01-20_15/SED3D.jpg
+2026-01-20 15:24:26 | INFO | GRBmodelstr | Plotting SED...
+2026-01-20 15:24:27 | INFO | GRBmodelstr | Plot saved as: plots_2026-01-20_15/SED3D.jpg

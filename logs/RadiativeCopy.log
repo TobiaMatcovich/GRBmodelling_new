@@ -1,0 +1,169 @@
+2026-01-20 15:18:29 | INFO | RadiativeCopy | Logger inizializzato. File: logs/RadiativeCopy.log
+2026-01-20 15:18:31 | INFO | RadiativeCopy | Gtilde vec:0.00051 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | SYN simpson logspace nb:0.97121 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | Gtilde vec:0.00058 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00028 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | Time for fic_numba : 0.53648 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09482 s
+2026-01-20 15:18:32 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.689 s
+2026-01-20 15:18:33 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.90684 s
+2026-01-20 15:18:33 | INFO | RadiativeCopy | Gtilde vec:0.00742 s
+2026-01-20 15:18:33 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00389 s
+2026-01-20 15:18:35 | INFO | RadiativeCopy | Time for fic_numba : 1.18411 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 7.26345 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 10.694 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00975 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Gtilde vec:0.00335 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00046 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Gtilde vec:0.00044 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00039 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for fic_numba : 0.01953 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.12543 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.214 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00318 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | Gtilde vec:0.00871 s
+2026-01-20 15:18:44 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00177 s
+2026-01-20 15:18:45 | INFO | RadiativeCopy | Time for fic_numba : 0.38452 s
+2026-01-20 15:18:47 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.85181 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.358 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00462 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Gtilde vec:0.00028 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00026 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Gtilde vec:0.00032 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00028 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for fic_numba : 0.01673 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.10064 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.175 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00081 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Gtilde vec:0.00663 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00162 s
+2026-01-20 15:18:48 | INFO | RadiativeCopy | Time for fic_numba : 0.37509 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.81367 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.283 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00480 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Gtilde vec:0.00026 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00030 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Gtilde vec:0.00033 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00026 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for fic_numba : 0.01618 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09726 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.168 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00085 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | Gtilde vec:0.00692 s
+2026-01-20 15:18:51 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00154 s
+2026-01-20 15:18:52 | INFO | RadiativeCopy | Time for fic_numba : 0.40092 s
+2026-01-20 15:18:54 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.83852 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.321 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00449 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Gtilde vec:0.00020 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00028 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Gtilde vec:0.00027 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00039 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for fic_numba : 0.01652 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09855 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.178 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00085 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Gtilde vec:0.00671 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00160 s
+2026-01-20 15:18:55 | INFO | RadiativeCopy | Time for fic_numba : 0.40032 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.88311 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.375 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00440 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Gtilde vec:0.00023 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00027 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Gtilde vec:0.00033 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00030 s
+2026-01-20 15:18:58 | INFO | RadiativeCopy | Time for fic_numba : 0.01671 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09970 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.177 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00081 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | Gtilde vec:0.00666 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00179 s
+2026-01-20 15:18:59 | INFO | RadiativeCopy | Time for fic_numba : 0.38054 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.85317 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.329 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00492 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Gtilde vec:0.00029 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00036 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Gtilde vec:0.00037 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00031 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for fic_numba : 0.01777 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.10342 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.184 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00087 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Gtilde vec:0.00688 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00165 s
+2026-01-20 15:19:02 | INFO | RadiativeCopy | Time for fic_numba : 0.38480 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.81886 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.276 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00462 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Gtilde vec:0.00027 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00029 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Gtilde vec:0.00028 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00029 s
+2026-01-20 15:19:05 | INFO | RadiativeCopy | Time for fic_numba : 0.01600 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09949 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.175 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00090 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | Gtilde vec:0.00792 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00273 s
+2026-01-20 15:19:06 | INFO | RadiativeCopy | Time for fic_numba : 0.38477 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.82542 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.290 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00459 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Gtilde vec:0.00929 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00026 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Gtilde vec:0.00029 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00030 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for fic_numba : 0.01823 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09869 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.178 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00087 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | Gtilde vec:0.00740 s
+2026-01-20 15:19:09 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00144 s
+2026-01-20 15:19:10 | INFO | RadiativeCopy | Time for fic_numba : 0.39342 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.80222 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.280 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00458 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Gtilde vec:0.00031 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00025 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Gtilde vec:0.00040 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00041 s
+2026-01-20 15:19:12 | INFO | RadiativeCopy | Time for fic_numba : 0.01833 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.09958 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.179 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00088 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | Gtilde vec:0.00727 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00144 s
+2026-01-20 15:19:13 | INFO | RadiativeCopy | Time for fic_numba : 0.38534 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.80389 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.267 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00468 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Gtilde vec:0.00028 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00030 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Gtilde vec:0.00031 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00029 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for fic_numba : 0.01739 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.10149 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.182 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00083 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | Gtilde vec:0.00847 s
+2026-01-20 15:19:16 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00282 s
+2026-01-20 15:19:17 | INFO | RadiativeCopy | Time for fic_numba : 0.38763 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.81765 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.299 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00472 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Gtilde vec:0.00028 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00025 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Gtilde vec:0.00028 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00028 s
+2026-01-20 15:19:19 | INFO | RadiativeCopy | Time for fic_numba : 0.01797 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 0.10268 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 0.183 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00088 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | Gtilde vec:0.00775 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | SYN simpson logspace nb:0.00277 s
+2026-01-20 15:19:20 | INFO | RadiativeCopy | Time for fic_numba : 0.38845 s
+2026-01-20 15:19:23 | INFO | RadiativeCopy | Time for gamint = simpson_logspace_nb() : 1.84403 s
+2026-01-20 15:19:23 | INFO | RadiativeCopy | Time for _iso_ic_on_monochromatic : 3.342 s
+2026-01-20 15:19:23 | INFO | RadiativeCopy | Time for lum = simpson_logspace_nb() : 0.00470 s
